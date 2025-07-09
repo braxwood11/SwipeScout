@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import TinderCard from 'react-tinder-card';
 
 // NFL Team Colors Mapping
@@ -60,12 +60,14 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
   };
 
   const handleSuccessfulSwipe = (direction) => {
-    console.log('Swipe success!', direction); // Debug log
+    console.log('Swipe success!', direction);
     setShowSuccess(direction);
     
+    // FIXED: Delay the onSwipe callback to allow animation to play
     setTimeout(() => {
       setShowSuccess(null);
-    }, 1000);
+      onSwipe(player, direction);
+    }, 600); // Match animation duration
   };
 
   const getCardTransform = () => {
@@ -99,7 +101,7 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
             {isLike ? '✓' : '✕'}
           </div>
           <div className="swipe-text">
-            {isLike ? 'DRAFT' : 'PASS'}
+            {isLike ? 'LIKE' : 'PASS'}
           </div>
         </div>
       </div>
@@ -189,15 +191,6 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
         </div>
       </div>
 
-      {/* Swipe Hint */}
-      {isInteractive && (
-        <div className="swipe-hint">
-          <div className="hint-arrow hint-left">←</div>
-          <span className="hint-text">Swipe to evaluate</span>
-          <div className="hint-arrow hint-right">→</div>
-        </div>
-      )}
-
       {/* Swipe overlay */}
       {getSwipeOverlay()}
 
@@ -257,40 +250,22 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
 
-        .player-card.swiping-right {
-          background: linear-gradient(135deg, #1a1a1a 0%, rgba(34, 197, 94, 0.15) 100%);
-        }
-
-        .player-card.swiping-left {
-          background: linear-gradient(135deg, #1a1a1a 0%, rgba(239, 68, 68, 0.15) 100%);
-        }
-
-        .particle-container {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          pointer-events: none;
-          z-index: 1000;
-        }
-
         .team-accent {
           position: absolute;
           top: 0;
           left: 0;
           right: 0;
           height: 4px;
-          background: linear-gradient(90deg, var(--team-primary) 0%, var(--team-secondary) 100%);
+          background: linear-gradient(90deg, var(--team-primary), var(--team-secondary));
         }
 
         .card-header {
-          position: relative;
-          padding: 20px 20px 0;
+          padding: 24px 20px 16px;
+          background: linear-gradient(180deg, rgba(0,0,0,0.1) 0%, transparent 100%);
         }
 
         .header-content {
-          margin-top: 16px;
+          text-align: center;
         }
 
         .position-badge {
@@ -298,67 +273,56 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           align-items: center;
           gap: 6px;
           padding: 6px 12px;
-          border-radius: 20px;
-          font-size: 0.8rem;
+          border-radius: 12px;
+          font-size: 0.875rem;
           font-weight: 600;
           color: white;
           margin-bottom: 12px;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
         }
 
         .position-icon {
           font-size: 1rem;
         }
 
-        .position-text {
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-
         .player-name {
           font-size: 1.5rem;
           font-weight: 700;
-          color: #ffffff;
-          margin: 0 0 8px 0;
+          color: white;
+          margin: 8px 0 4px;
           line-height: 1.2;
         }
 
         .team-name {
-          font-size: 0.9rem;
-          color: rgba(255, 255, 255, 0.7);
+          font-size: 0.875rem;
+          color: #9ca3af;
           font-weight: 500;
-          text-transform: uppercase;
-          letter-spacing: 1px;
+          margin-bottom: 8px;
         }
 
         .rookie-badge {
           display: inline-block;
-          margin-top: 8px;
-          padding: 4px 8px;
+          padding: 2px 8px;
           background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
           color: white;
-          font-size: 0.7rem;
-          font-weight: 700;
-          border-radius: 12px;
+          font-size: 0.75rem;
+          font-weight: 600;
+          border-radius: 8px;
           text-transform: uppercase;
-          letter-spacing: 0.5px;
-          box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+          letter-spacing: 0.025em;
         }
 
         .card-body {
           flex: 1;
-          padding: 20px;
+          padding: 0 20px 20px;
           display: flex;
           flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          gap: 32px;
+          gap: 20px;
         }
 
         .avatar-section {
           display: flex;
-          align-items: center;
           justify-content: center;
+          margin-top: 8px;
         }
 
         .avatar-placeholder {
@@ -368,46 +332,32 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           display: flex;
           align-items: center;
           justify-content: center;
+          border: 3px solid rgba(255, 255, 255, 0.2);
           box-shadow: 
-            0 12px 30px rgba(0, 0, 0, 0.4),
-            0 0 0 4px rgba(255, 255, 255, 0.1);
-          transition: all 0.3s ease;
+            0 8px 32px rgba(0, 0, 0, 0.3),
+            inset 0 2px 8px rgba(255, 255, 255, 0.1);
         }
 
         .avatar-initials {
           font-size: 2.5rem;
           font-weight: 700;
           color: white;
-          text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+          text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
         }
 
         .stats-grid {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
-          gap: 20px;
-          width: 100%;
-          max-width: 280px;
+          gap: 12px;
+          margin-top: auto;
         }
 
         .stat-item {
           text-align: center;
           padding: 12px 8px;
           background: rgba(255, 255, 255, 0.05);
-          border-radius: 16px;
+          border-radius: 12px;
           border: 1px solid rgba(255, 255, 255, 0.1);
-          transition: all 0.3s ease;
-        }
-
-        .stat-item:hover {
-          background: rgba(255, 255, 255, 0.08);
-          transform: translateY(-2px);
-        }
-
-        .stat-value {
-          font-size: 1.25rem;
-          font-weight: 700;
-          color: #ffffff;
-          margin-bottom: 4px;
         }
 
         .stat-item.positive .stat-value {
@@ -418,30 +368,43 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           color: #ef4444;
         }
 
+        .stat-value {
+          font-size: 1.25rem;
+          font-weight: 700;
+          color: white;
+          line-height: 1.2;
+        }
+
         .stat-label {
           font-size: 0.75rem;
-          color: rgba(255, 255, 255, 0.6);
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
+          color: #9ca3af;
           font-weight: 500;
+          margin-top: 4px;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
         }
 
         .swipe-hint {
-          padding: 20px;
+          position: absolute;
+          bottom: 16px;
+          left: 50%;
+          transform: translateX(-50%);
           display: flex;
           align-items: center;
-          justify-content: center;
           gap: 12px;
-          color: rgba(255, 255, 255, 0.5);
-          font-size: 0.9rem;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          font-weight: 600;
+          padding: 8px 16px;
+          background: rgba(0, 0, 0, 0.8);
+          border-radius: 20px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          font-size: 0.875rem;
+          color: #d1d5db;
+          backdrop-filter: blur(10px);
+          z-index: 10;
         }
 
         .hint-arrow {
-          font-size: 1.2rem;
-          animation: pulse 2s infinite;
+          font-size: 1.25rem;
+          font-weight: bold;
         }
 
         .hint-left {
@@ -519,74 +482,7 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           font-weight: 700;
           color: white;
           text-transform: uppercase;
-          letter-spacing: 3px;
-          text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-        }
-
-        @keyframes burstRight {
-          0% { 
-            opacity: 1;
-            transform: scale(0) translate(0, 0);
-          }
-          100% { 
-            opacity: 0;
-            transform: scale(1) translate(var(--burst-x, 150px), var(--burst-y, -100px));
-          }
-        }
-
-        @keyframes burstLeft {
-          0% { 
-            opacity: 1;
-            transform: scale(0) translate(0, 0);
-          }
-          100% { 
-            opacity: 0;
-            transform: scale(1) translate(var(--burst-x, -150px), var(--burst-y, -100px));
-          }
-        }
-
-        .particle-1 { --burst-x: 120px; --burst-y: -80px; }
-        .particle-2 { --burst-x: 80px; --burst-y: -120px; }
-        .particle-3 { --burst-x: 140px; --burst-y: -40px; }
-        .particle-4 { --burst-x: 100px; --burst-y: -100px; }
-        .particle-5 { --burst-x: 160px; --burst-y: -60px; }
-        .particle-6 { --burst-x: 90px; --burst-y: -140px; }
-        .particle-7 { --burst-x: 130px; --burst-y: -20px; }
-        .particle-8 { --burst-x: 110px; --burst-y: -110px; }
-        .particle-9 { --burst-x: 170px; --burst-y: -70px; }
-        .particle-10 { --burst-x: 70px; --burst-y: -130px; }
-        .particle-11 { --burst-x: 150px; --burst-y: -50px; }
-        .particle-12 { --burst-x: 95px; --burst-y: -95px; }
-
-        @keyframes rippleGreen {
-          0% { 
-            opacity: 0.9;
-            transform: translate(-50%, -50%) scale(0);
-            border-width: 4px;
-          }
-          100% { 
-            opacity: 0;
-            transform: translate(-50%, -50%) scale(4);
-            border-width: 0px;
-          }
-        }
-
-        @keyframes rippleRed {
-          0% { 
-            opacity: 0.9;
-            transform: translate(-50%, -50%) scale(0);
-            border-width: 4px;
-          }
-          100% { 
-            opacity: 0;
-            transform: translate(-50%, -50%) scale(4);
-            border-width: 0px;
-          }
-        }
-
-        @keyframes pulse {
-          0%, 100% { opacity: 0.5; transform: scale(1); }
-          50% { opacity: 1; transform: scale(1.1); }
+          letter-spacing: 0.1em;
         }
 
         @keyframes successPulse {
@@ -619,6 +515,109 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           }
         }
 
+        /* Particle Effects */
+        .particle-burst {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          pointer-events: none;
+          z-index: 150;
+        }
+
+        .particle {
+          position: absolute;
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          opacity: 1;
+          animation: particleExplode 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+        }
+
+        .particle-burst.right .particle {
+          background: #22c55e;
+          box-shadow: 0 0 6px #22c55e;
+        }
+
+        .particle-burst.left .particle {
+          background: #ef4444;
+          box-shadow: 0 0 6px #ef4444;
+        }
+
+        .particle-1 { animation-delay: 0.0s; }
+        .particle-2 { animation-delay: 0.1s; }
+        .particle-3 { animation-delay: 0.05s; }
+        .particle-4 { animation-delay: 0.15s; }
+        .particle-5 { animation-delay: 0.02s; }
+        .particle-6 { animation-delay: 0.12s; }
+        .particle-7 { animation-delay: 0.08s; }
+        .particle-8 { animation-delay: 0.18s; }
+        .particle-9 { animation-delay: 0.04s; }
+        .particle-10 { animation-delay: 0.14s; }
+        .particle-11 { animation-delay: 0.06s; }
+        .particle-12 { animation-delay: 0.16s; }
+
+        @keyframes particleExplode {
+          0% {
+            transform: translate(0, 0) scale(0);
+            opacity: 1;
+          }
+          15% {
+            transform: translate(0, 0) scale(1);
+            opacity: 1;
+          }
+          100% {
+            transform: translate(var(--particle-x, 0), var(--particle-y, 0)) scale(0);
+            opacity: 0;
+          }
+        }
+
+        .particle-1 { --particle-x: 60px; --particle-y: -40px; }
+        .particle-2 { --particle-x: -50px; --particle-y: -30px; }
+        .particle-3 { --particle-x: 70px; --particle-y: 20px; }
+        .particle-4 { --particle-x: -60px; --particle-y: 30px; }
+        .particle-5 { --particle-x: 40px; --particle-y: -60px; }
+        .particle-6 { --particle-x: -40px; --particle-y: -50px; }
+        .particle-7 { --particle-x: 80px; --particle-y: 10px; }
+        .particle-8 { --particle-x: -70px; --particle-y: 15px; }
+        .particle-9 { --particle-x: 30px; --particle-y: 50px; }
+        .particle-10 { --particle-x: -30px; --particle-y: 60px; }
+        .particle-11 { --particle-x: 55px; --particle-y: -20px; }
+        .particle-12 { --particle-x: -55px; --particle-y: -10px; }
+
+        /* Ripple Effect */
+        .ripple-effect {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          width: 100px;
+          height: 100px;
+          border-radius: 50%;
+          pointer-events: none;
+          z-index: 90;
+          animation: ripple 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+        }
+
+        .ripple-effect.right {
+          border: 3px solid #22c55e;
+        }
+
+        .ripple-effect.left {
+          border: 3px solid #ef4444;
+        }
+
+        @keyframes ripple {
+          0% {
+            transform: translate(-50%, -50%) scale(0);
+            opacity: 1;
+          }
+          100% {
+            transform: translate(-50%, -50%) scale(4);
+            opacity: 0;
+          }
+        }
+
         /* Mobile Optimizations */
         @media (max-width: 640px) {
           .player-card {
@@ -645,20 +644,6 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
 
           .swipe-hint {
             padding: 16px;
-          }
-        }
-
-        /* Remove hover effects on touch devices */
-        @media (hover: none) {
-          .player-card.interactive-card:hover {
-            transform: none;
-            box-shadow: 
-              0 20px 40px rgba(0, 0, 0, 0.3),
-              0 0 0 1px rgba(255, 255, 255, 0.1);
-          }
-
-          .player-card.background-card:hover {
-            transform: scale(calc(0.95 - var(--card-index) * 0.03)) translateY(calc(var(--card-index) * 6px)) !important;
           }
         }
       `}</style>
@@ -689,9 +674,9 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
     <TinderCard
       className="tinder-card"
       onSwipe={(dir) => {
-        handleSuccessfulSwipe(dir === 'right' ? 'right' : 'left');
+        // FIXED: Only call handleSuccessfulSwipe, which now handles the delay
+        handleSuccessfulSwipe(dir);
         handleSwipeEnd();
-        onSwipe(player, dir);
       }}
       onCardLeftScreen={handleSwipeEnd}
       preventSwipe={['up', 'down']}
