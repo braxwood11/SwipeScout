@@ -1,0 +1,30 @@
+export function makeDraftPlan(players, prefs, leagueSize=12) {
+  // 1) keep only swiped-right players
+  const liked = players.filter(p => prefs[p.ID] === 1)
+                       .sort((a,b)=>a.ADP - b.ADP);
+
+  // 2) bucket into tiers: gap ≥ 15 ADP OR ≥ 30 projected pts drop
+  const tiers = [];
+  let current = [];
+  for (let i=0; i<liked.length; i++) {
+    const p = liked[i];
+    if (!current.length) { current.push(p); continue; }
+
+    const prev = liked[i-1];
+    if (p.ADP - prev.ADP >= 15 || prev.ProjPts - p.ProjPts >= 30) {
+      tiers.push(current);
+      current = [];
+    }
+    current.push(p);
+  }
+  if (current.length) tiers.push(current);
+
+  // 3) map rounds based on ADP (snake draft)
+  const rounds = Array.from({length:16}, ()=>[]);
+  liked.forEach(p => {
+    const approxRound = Math.ceil(p.ADP / leagueSize);
+    if (approxRound <= 16) rounds[approxRound-1].push(p);
+  });
+
+  return {tiers, rounds};
+}
