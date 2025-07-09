@@ -1,63 +1,60 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import TinderCard from 'react-tinder-card';
 
+// NFL Team Colors Mapping
 const teamColors = {
-  // Team color configurations...
-  ARI: { primary: '#97233F', secondary: '#000000' },
-  ATL: { primary: '#A71930', secondary: '#000000' },
-  BAL: { primary: '#241773', secondary: '#000000' },
-  BUF: { primary: '#00338D', secondary: '#C60C30' },
-  CAR: { primary: '#0085CA', secondary: '#101820' },
-  CHI: { primary: '#0B162A', secondary: '#C83803' },
-  CIN: { primary: '#FB4F14', secondary: '#000000' },
-  CLE: { primary: '#311D00', secondary: '#FF3C00' },
-  DAL: { primary: '#003594', secondary: '#041E42' },
-  DEN: { primary: '#FB4F14', secondary: '#002244' },
-  DET: { primary: '#0076B6', secondary: '#B0B7BC' },
-  GB: { primary: '#203731', secondary: '#FFB612' },
-  HOU: { primary: '#03202F', secondary: '#A71930' },
-  IND: { primary: '#002C5F', secondary: '#A2AAAD' },
-  JAX: { primary: '#101820', secondary: '#D7A22A' },
-  KC: { primary: '#E31837', secondary: '#FFB81C' },
-  LV: { primary: '#000000', secondary: '#A5ACAF' },
-  LAC: { primary: '#0080C6', secondary: '#FFC20E' },
-  LAR: { primary: '#003594', secondary: '#FFA300' },
-  MIA: { primary: '#008E97', secondary: '#FC4C02' },
-  MIN: { primary: '#4F2683', secondary: '#FFC62F' },
-  NE: { primary: '#002244', secondary: '#C60C30' },
-  NO: { primary: '#101820', secondary: '#D3BC8D' },
-  NYG: { primary: '#0B2265', secondary: '#A71930' },
-  NYJ: { primary: '#125740', secondary: '#000000' },
-  PHI: { primary: '#004C54', secondary: '#A5ACAF' },
-  PIT: { primary: '#FFB612', secondary: '#101820' },
-  SF: { primary: '#AA0000', secondary: '#B3995D' },
-  SEA: { primary: '#002244', secondary: '#69BE28' },
-  TB: { primary: '#D50A0A', secondary: '#FF7900' },
-  TEN: { primary: '#0C2340', secondary: '#4B92DB' },
-  WAS: { primary: '#5A1414', secondary: '#FFB612' }
+  'ARI': { primary: '#97233F', secondary: '#000000' },
+  'ATL': { primary: '#A71930', secondary: '#000000' },
+  'BAL': { primary: '#241773', secondary: '#000000' },
+  'BUF': { primary: '#00338D', secondary: '#C60C30' },
+  'CAR': { primary: '#0085CA', secondary: '#000000' },
+  'CHI': { primary: '#0B162A', secondary: '#C83803' },
+  'CIN': { primary: '#FB4F14', secondary: '#000000' },
+  'CLE': { primary: '#311D00', secondary: '#FF3C00' },
+  'DAL': { primary: '#003594', secondary: '#869397' },
+  'DEN': { primary: '#FB4F14', secondary: '#002244' },
+  'DET': { primary: '#0076B6', secondary: '#B0B7BC' },
+  'GB': { primary: '#203731', secondary: '#FFB612' },
+  'HOU': { primary: '#03202F', secondary: '#A71930' },
+  'IND': { primary: '#002C5F', secondary: '#A2AAAD' },
+  'JAX': { primary: '#006778', secondary: '#9F792C' },
+  'KC': { primary: '#E31837', secondary: '#FFB81C' },
+  'LV': { primary: '#000000', secondary: '#A5ACAF' },
+  'LAC': { primary: '#0080C6', secondary: '#FFC20E' },
+  'LAR': { primary: '#003594', secondary: '#FFA300' },
+  'MIA': { primary: '#008E97', secondary: '#FC4C02' },
+  'MIN': { primary: '#4F2683', secondary: '#FFC62F' },
+  'NE': { primary: '#002244', secondary: '#C60C30' },
+  'NO': { primary: '#D3BC8D', secondary: '#000000' },
+  'NYG': { primary: '#0B2265', secondary: '#A71930' },
+  'NYJ': { primary: '#125740', secondary: '#000000' },
+  'PHI': { primary: '#004C54', secondary: '#A5ACAF' },
+  'PIT': { primary: '#FFB612', secondary: '#000000' },
+  'SF': { primary: '#AA0000', secondary: '#B3995D' },
+  'SEA': { primary: '#002244', secondary: '#69BE28' },
+  'TB': { primary: '#D50A0A', secondary: '#FF7900' },
+  'TEN': { primary: '#0C2340', secondary: '#4B92DB' },
+  'WSH': { primary: '#5A1414', secondary: '#FFB612' }
 };
 
-const positionConfigs = {
-  QB: { icon: '🎯', color: '#3b82f6', shape: 'rounded' },
-  RB: { icon: '⚡', color: '#10b981', shape: 'rounded' },
-  WR: { icon: '🔥', color: '#f59e0b', shape: 'rounded' },
-  TE: { icon: '💎', color: '#8b5cf6', shape: 'rounded' },
-  K: { icon: '🦵', color: '#6b7280', shape: 'rounded' },
-  DST: { icon: '🛡️', color: '#374151', shape: 'rounded' }
+// Position Icons and Shapes
+const positionConfig = {
+  'QB': { icon: '🎯', shape: 'circle', color: '#3B82F6' },
+  'RB': { icon: '🏃', shape: 'square', color: '#10B981' },
+  'WR': { icon: '🙌', shape: 'diamond', color: '#F59E0B' },
+  'TE': { icon: '🙆‍♂️', shape: 'hexagon', color: '#8B5CF6' },
+  'K': { icon: '🦵', shape: 'circle', color: '#6B7280' },
+  'DEF': { icon: '🛡️', shape: 'square', color: '#EF4444' }
 };
 
 export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteractive = true }) {
-  const [swipeDirection, setSwipeDirection] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
-
+  const [swipeDirection, setSwipeDirection] = useState(null);
+  
   const { name, team, position, fantasyPts, auction, vorp, rookie } = player;
-
-  const teamColor = teamColors[team] || { primary: '#374151', secondary: '#6b7280' };
-  const posConfig = positionConfigs[position] || { icon: '❓', color: '#6b7280', shape: 'rounded' };
-
-  const handleSwipeStart = () => {
-    setIsDragging(true);
-  };
+  
+  const teamColor = teamColors[team] || { primary: '#6B7280', secondary: '#374151' };
+  const posConfig = positionConfig[position] || positionConfig['WR'];
 
   const handleSwipeEnd = () => {
     setIsDragging(false);
@@ -164,22 +161,21 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           flex-direction: column;
           top: 0;
           left: 0;
+          /* REMOVED: All z-index rules to rely on DOM order */
         }
 
-        /* FIXED: Separate styles for interactive and background cards */
         .player-card.interactive-card {
-          opacity: 1 !important;
+          opacity: 1;
           pointer-events: auto;
+          /* No transform - keep in normal flow */
         }
 
         .player-card.background-card {
           pointer-events: none;
           opacity: 0.4;
-          transform: scale(calc(1 - var(--card-index) * 0.05)) translateY(calc(var(--card-index) * 8px));
+          /* SIMPLIFIED: Reduce transform complexity that creates stacking contexts */
+          transform: scale(calc(0.95 - var(--card-index) * 0.03)) translateY(calc(var(--card-index) * 6px));
           transform-origin: center center;
-          position: absolute;
-          top: 0;
-          left: 0;
         }
 
         .player-card.background-card .swipe-hint {
@@ -194,11 +190,13 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
         }
 
         .player-card.background-card:hover {
-          transform: scale(calc(1 - var(--card-index) * 0.05)) translateY(calc(var(--card-index) * 8px));
+          /* Keep transform consistent on hover */
+          transform: scale(calc(0.95 - var(--card-index) * 0.03)) translateY(calc(var(--card-index) * 6px));
         }
 
         .player-card.dragging {
-          z-index: 1000 !important;
+          /* Only apply z-index when actively dragging */
+          z-index: 9999 !important;
           transform: scale(1.02);
         }
 
@@ -284,10 +282,9 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
         }
 
         .team {
-          color: #9ca3af;
-          font-size: 0.875rem;
-          font-weight: 600;
-          text-transform: uppercase;
+          color: #9CA3AF;
+          font-weight: 500;
+          font-size: 0.9rem;
         }
 
         .position-badge {
@@ -298,29 +295,50 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           color: white;
           padding: 4px 8px;
           border-radius: 8px;
-          font-size: 0.75rem;
+          font-size: 0.8rem;
           font-weight: 600;
         }
 
+        .position-badge.diamond {
+          border-radius: 6px;
+          transform: rotate(45deg);
+        }
+
+        .position-badge.diamond .position-icon,
+        .position-badge.diamond .position-text {
+          transform: rotate(-45deg);
+        }
+
+        .position-badge.hexagon {
+          clip-path: polygon(20% 0%, 80% 0%, 100% 50%, 80% 100%, 20% 100%, 0% 50%);
+          padding: 4px 12px;
+        }
+
         .position-icon {
-          font-size: 0.875rem;
+          font-size: 1rem;
+        }
+
+        .position-text {
+          font-size: 0.75rem;
         }
 
         .player-avatar {
           display: flex;
           justify-content: center;
-          margin: 20px 0;
+          padding: 20px;
+          flex: 1;
+          align-items: center;
         }
 
         .avatar-placeholder {
           width: 120px;
           height: 120px;
-          background: linear-gradient(135deg, var(--team-primary) 0%, var(--team-secondary) 100%);
           border-radius: 50%;
+          background: linear-gradient(135deg, var(--team-primary) 0%, var(--team-secondary) 100%);
           display: flex;
           align-items: center;
           justify-content: center;
-          border: 3px solid rgba(255, 255, 255, 0.1);
+          border: 3px solid rgba(255, 255, 255, 0.2);
         }
 
         .avatar-initials {
@@ -333,9 +351,10 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
         .stats-container {
           display: flex;
           align-items: center;
-          justify-content: space-between;
-          padding: 0 20px;
-          margin: 20px 0;
+          justify-content: space-around;
+          padding: 20px;
+          background: rgba(0, 0, 0, 0.2);
+          border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .stat-item {
@@ -359,8 +378,8 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
         }
 
         .stat-label {
-          font-size: 0.75rem;
-          color: #9ca3af;
+          font-size: 0.8rem;
+          color: #9CA3AF;
           font-weight: 500;
           text-transform: uppercase;
           letter-spacing: 0.5px;
@@ -369,7 +388,7 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
         .stat-divider {
           width: 1px;
           height: 40px;
-          background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.1), transparent);
+          background: rgba(255, 255, 255, 0.1);
           margin: 0 8px;
         }
 
@@ -379,39 +398,20 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           justify-content: center;
           gap: 12px;
           padding: 20px;
-          margin-top: auto;
-        }
-
-        .hint-text {
-          color: #6b7280;
-          font-size: 0.875rem;
-          font-weight: 500;
+          background: rgba(255, 255, 255, 0.05);
+          border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .hint-arrow {
-          color: #4b5563;
-          font-size: 1.125rem;
+          font-size: 1.2rem;
+          color: #9CA3AF;
           font-weight: bold;
-          animation: pulse 2s infinite;
         }
 
-        .hint-arrow.hint-left {
-          color: #ef4444;
-        }
-
-        .hint-arrow.hint-right {
-          color: #22c55e;
-        }
-
-        @keyframes pulse {
-          0%, 100% {
-            opacity: 0.5;
-            transform: scale(1);
-          }
-          50% {
-            opacity: 1;
-            transform: scale(1.1);
-          }
+        .hint-text {
+          font-size: 0.9rem;
+          color: #9CA3AF;
+          font-weight: 500;
         }
 
         /* Mobile Optimizations */
@@ -453,21 +453,15 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           }
 
           .player-card.background-card:hover {
-            transform: scale(calc(1 - var(--card-index) * 0.05)) translateY(calc(var(--card-index) * 8px));
+            transform: scale(calc(0.95 - var(--card-index) * 0.03)) translateY(calc(var(--card-index) * 6px));
           }
         }
       `}</style>
     </div>
   );
 
-  // Only wrap interactive cards in TinderCard
+  // SIMPLIFIED: All cards use same wrapper approach, no z-index management
   if (!isInteractive) {
-    // Explicit z-index based on cardIndex
-    let wrapperZIndex;
-    if (cardIndex === 1) wrapperZIndex = 2; // First background card
-    else if (cardIndex === 2) wrapperZIndex = 1; // Second background card  
-    else wrapperZIndex = 0; // Fallback
-    
     return (
       <div 
         className="background-card-wrapper"
@@ -478,7 +472,7 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           width: '320px',
           height: '480px',
           pointerEvents: 'none',
-          zIndex: wrapperZIndex
+          /* NO z-index - rely on DOM order */
         }}
       >
         {cardContent}
@@ -499,15 +493,16 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
       swipeThreshold={80}
       flickOnSwipe={true}
       style={{
-      position: 'absolute',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      cursor: isInteractive ? 'grab' : 'default',
-      userSelect: 'none',
-      willChange: 'transform',
-      zIndex: 100 - cardIndex  // ✅ ensures top card is always above background ones
-        }}
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '320px',
+        height: '480px',
+        cursor: 'grab',
+        userSelect: 'none',
+        willChange: 'transform',
+        /* NO z-index - rely on DOM order (rendered last = appears on top) */
+      }}
     >
       {cardContent}
     </TinderCard>
