@@ -149,6 +149,7 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
 
       <style jsx>{`
         .player-card {
+          will-change: transform;
           width: 320px;
           height: 480px;
           background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
@@ -168,7 +169,6 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
         /* FIXED: Separate styles for interactive and background cards */
         .player-card.interactive-card {
           opacity: 1 !important;
-          z-index: 1;
           pointer-events: auto;
         }
 
@@ -177,7 +177,6 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           opacity: 0.4;
           transform: scale(calc(1 - var(--card-index) * 0.05)) translateY(calc(var(--card-index) * 8px));
           transform-origin: center center;
-          z-index: 1;
           position: absolute;
           top: 0;
           left: 0;
@@ -500,15 +499,15 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
       swipeThreshold={80}
       flickOnSwipe={true}
       style={{
-        position: 'absolute',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        cursor: 'grab',
-        userSelect: 'none',
-        willChange: 'transform',
-        zIndex: 50 // Much higher than background cards (1, 2)
-      }}
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      cursor: isInteractive ? 'grab' : 'default',
+      userSelect: 'none',
+      willChange: 'transform',
+      zIndex: 100 - cardIndex  // ✅ ensures top card is always above background ones
+        }}
     >
       {cardContent}
     </TinderCard>

@@ -140,6 +140,7 @@ export default function SwipeDeck() {
           position: relative;
           width: 320px;
           height: 480px;
+          isolation: isolate;
           flex-shrink: 0;
           margin: 0 auto;
         }
