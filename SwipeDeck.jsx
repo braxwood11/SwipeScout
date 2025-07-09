@@ -125,7 +125,7 @@ export default function SwipeDeck() {
       <div style={styles.appContainer}>
         <div style={styles.positionSelectionScreen}>
           <div style={styles.positionHeader}>
-            <h1 style={styles.positionHeaderTitle}>Draft Swipe</h1>
+            <h1 style={styles.positionHeaderTitle}>SwipeScout</h1>
             <p style={styles.positionHeaderSubtitle}>Select a position to start evaluating players</p>
           </div>
 
@@ -282,12 +282,12 @@ export default function SwipeDeck() {
   );
 }
 
-// All styles defined in JavaScript objects (no separate CSS file needed!)
+
 const styles = {
   appContainer: {
     minHeight: '100vh',
-    width: '100%',
-    maxWidth: '100vw',
+    width: '100vw', // Use full viewport width
+    maxWidth: '100vw', // Prevent any overflow
     background: 'linear-gradient(135deg, #1e293b 0%, #7c3aed 50%, #1e293b 100%)',
     backgroundAttachment: 'fixed',
     display: 'flex',
@@ -296,27 +296,32 @@ const styles = {
     justifyContent: 'flex-start',
     padding: 'clamp(0.75rem, 2vw, 1.5rem)',
     color: 'white',
-    overflowX: 'hidden',
-    boxSizing: 'border-box'
+    overflowX: 'hidden', // Prevent horizontal scroll
+    boxSizing: 'border-box',
+    margin: 0, // Ensure no margin
+    position: 'relative' // Establish containing block
   },
 
   // Position Selection Screen Styles
   positionSelectionScreen: {
     padding: '0',
     maxWidth: '100%',
-    margin: '0 auto',
+    margin: '0',
     width: '100%',
-    minHeight: 'calc(100vh - 2rem)',
+    minHeight: 'calc(100vh - 3rem)', // Account for appContainer padding
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'center',
+    alignItems: 'center', // Center content
     boxSizing: 'border-box'
   },
 
   positionHeader: {
     textAlign: 'center',
     marginBottom: 'clamp(2rem, 5vh, 3rem)',
-    padding: '0'
+    padding: '0',
+    width: '100%',
+    maxWidth: '100%'
   },
 
   positionHeaderTitle: {
@@ -338,11 +343,11 @@ const styles = {
 
   positionGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, calc(100vw - 4rem)), 1fr))', // Better responsive sizing
     gap: 'clamp(0.75rem, 2.5vw, 1.5rem)',
     marginBottom: '2rem',
     width: '100%',
-    maxWidth: '1200px',
+    maxWidth: 'min(1200px, calc(100vw - 3rem))', // Ensure it fits in viewport
     padding: '0',
     boxSizing: 'border-box'
   },
@@ -524,7 +529,7 @@ const styles = {
     color: '#d1d5db'
   },
 
-  // Deck Styles
+  // Deck Styles - ensure cards are properly contained
   deckContainer: {
     display: 'flex',
     justifyContent: 'center',
@@ -537,7 +542,7 @@ const styles = {
 
   deck: {
     position: 'relative',
-    width: 'min(320px, calc(100vw - 3rem))',
+    width: 'min(320px, calc(100vw - 4rem))', // Ensure proper spacing from edges
     height: 'min(450px, 60vh)',
     maxHeight: '500px'
   },
@@ -559,7 +564,7 @@ const styles = {
   completionScreen: {
     textAlign: 'center',
     color: 'white',
-    maxWidth: '500px',
+    maxWidth: 'min(500px, calc(100vw - 3rem))', // Responsive max width
     padding: 'clamp(1rem, 3vw, 2rem)',
     margin: '0 auto',
     display: 'flex',
