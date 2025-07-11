@@ -22,6 +22,8 @@ const POSITION_CONFIG = {
 const STORAGE_KEY = 'draftswipe_prefs_v3_4direction';
 // New storage key for position progress
 const PROGRESS_STORAGE_KEY = 'draftswipe_progress_v1';
+// SWIPE COUNTER: Storage key for global swipe counter
+const SWIPE_COUNTER_KEY = 'draftswipe_global_counter';
 
 // Direction to value mapping
 const DIRECTION_VALUES = {
@@ -46,6 +48,11 @@ export default function SwipeDeck() {
   const [positionProgress, setPositionProgress] = useState(() => {
     const raw = localStorage.getItem(PROGRESS_STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
+  });
+  // SWIPE COUNTER: New state for global swipe counter
+  const [globalSwipeCount, setGlobalSwipeCount] = useState(() => {
+    const stored = localStorage.getItem(SWIPE_COUNTER_KEY);
+    return stored ? parseInt(stored, 10) : 0;
   });
 
   // Helper function to save position progress
@@ -109,12 +116,32 @@ export default function SwipeDeck() {
     setIndex(savedIndex);
   };
 
-  // Updated onSwipe to handle 4 directions
+  // Helper function to get position status and progress info
+  const getPositionStatus = (position) => {
+    const playerCount = processedPositions[position]?.length || 0;
+    const isCompleted = completedPositions.has(position);
+    const currentProgress = positionProgress[position] || 0;
+    
+    if (isCompleted) {
+      return { status: 'Completed', progress: playerCount, total: playerCount };
+    } else if (currentProgress > 0) {
+      return { status: 'In Progress', progress: currentProgress, total: playerCount };
+    } else {
+      return { status: 'Not Started', progress: 0, total: playerCount };
+    }
+  };
+
+  // SWIPE COUNTER: Updated onSwipe to handle 4 directions and increment global counter
   const onSwipe = (player, direction) => {
     const value = DIRECTION_VALUES[direction];
     const newPrefs = { ...prefs, [player.id]: value };
     setPrefs(newPrefs);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(newPrefs));
+    
+    // SWIPE COUNTER: Increment global swipe counter
+    const newCount = globalSwipeCount + 1;
+    setGlobalSwipeCount(newCount);
+    localStorage.setItem(SWIPE_COUNTER_KEY, newCount.toString());
     
     const nextIndex = index + 1;
     setIndex(nextIndex);
@@ -161,19 +188,9 @@ export default function SwipeDeck() {
     setIndex(0);
   };
 
-  // Helper function to get position status and progress info
-  const getPositionStatus = (position) => {
-    const playerCount = processedPositions[position]?.length || 0;
-    const isCompleted = completedPositions.has(position);
-    const currentProgress = positionProgress[position] || 0;
-    
-    if (isCompleted) {
-      return { status: 'Completed', progress: playerCount, total: playerCount };
-    } else if (currentProgress > 0) {
-      return { status: 'In Progress', progress: currentProgress, total: playerCount };
-    } else {
-      return { status: 'Not Started', progress: 0, total: playerCount };
-    }
+  // SWIPE COUNTER: Format swipe count with commas for readability
+  const formatSwipeCount = (count) => {
+    return count.toLocaleString();
   };
 
   // Loading state
@@ -192,6 +209,12 @@ export default function SwipeDeck() {
     return (
       <div style={styles.appContainer}>
         <div style={styles.positionSelectionScreen}>
+          {/* SWIPE COUNTER: Global Swipe Counter - shown on position selection screen */}
+          <div style={styles.globalCounter}>
+            <span style={styles.counterLabel}>Global Swipes:</span>
+            <span style={styles.counterValue}>{formatSwipeCount(globalSwipeCount)}</span>
+          </div>
+          
           <div style={styles.positionHeader}>
             <h1 style={styles.positionHeaderTitle}>SwipeScout</h1>
             <p style={styles.positionHeaderSubtitle}>Select a position to start evaluating players</p>
@@ -307,7 +330,11 @@ export default function SwipeDeck() {
           <h3 style={styles.positionProgressTitle}>{POSITION_CONFIG[currentPosition]?.name}</h3>
           <p style={styles.positionProgressSubtitle}>{index + 1} of {positionPlayers.length}</p>
         </div>
-        {!isMobile && <div style={styles.spacer}></div>}
+        {/* SWIPE COUNTER: Global Swipe Counter - shown during swiping */}
+        <div style={styles.globalCounterCompact}>
+          <div style={styles.counterLabelSmall}>Swipes</div>
+          <div style={styles.counterValueSmall}>{formatSwipeCount(globalSwipeCount)}</div>
+        </div>
       </div>
       
       {/* Progress Bar */}
@@ -396,24 +423,14 @@ export default function SwipeDeck() {
           <div style={styles.swipeInstructions}>
             <div style={styles.instructionRow}>
               <span style={styles.instructionItem}>
-                <span style={styles.instructionIcon}>👆</span>
-                <span style={styles.instructionText}>Swipe Up: Love</span>
-              </span>
-            </div>
-            <div style={styles.instructionRow}>
-              <span style={styles.instructionItem}>
-                <span style={styles.instructionIcon}>👈</span>
-                <span style={styles.instructionText}>Swipe Left: Meh</span>
-              </span>
-              <span style={styles.instructionItem}>
-                <span style={styles.instructionIcon}>👉</span>
-                <span style={styles.instructionText}>Swipe Right: Like</span>
-              </span>
-            </div>
-            <div style={styles.instructionRow}>
-              <span style={styles.instructionItem}>
                 <span style={styles.instructionIcon}>👇</span>
-                <span style={styles.instructionText}>Swipe Down: Pass</span>
+                <span style={styles.instructionText}>Pass  &nbsp;&nbsp;|</span>
+                <span style={styles.instructionIcon}>👈</span>
+                <span style={styles.instructionText}>Meh  &nbsp;&nbsp;|</span>
+                <span style={styles.instructionIcon}>👉</span>
+                <span style={styles.instructionText}>Like  &nbsp;&nbsp;|</span>
+                <span style={styles.instructionIcon}>👆</span>
+                <span style={styles.instructionText}>Love</span>
               </span>
             </div>
           </div>
@@ -450,6 +467,32 @@ const styles = {
     width: '100%',
     textAlign: 'center',
     boxSizing: 'border-box'
+  },
+
+  // SWIPE COUNTER: Global counter on position selection screen
+  globalCounter: {
+    background: 'rgba(255, 255, 255, 0.05)',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    borderRadius: '0.75rem',
+    padding: '0.75rem 1rem',
+    marginBottom: '2rem',
+    backdropFilter: 'blur(10px)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: '0.5rem'
+  },
+
+  counterLabel: {
+    color: '#d1d5db',
+    fontSize: '0.9rem',
+    fontWeight: '500'
+  },
+
+  counterValue: {
+    color: '#22c55e',
+    fontSize: '1.1rem',
+    fontWeight: 'bold'
   },
 
   positionHeader: {
@@ -648,6 +691,31 @@ const styles = {
     color: '#d1d5db',
     margin: '0',
     marginTop: '0.25rem'
+  },
+
+  // SWIPE COUNTER: Compact global counter for header
+  globalCounterCompact: {
+    background: 'rgba(255, 255, 255, 0.05)',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    borderRadius: '0.5rem',
+    padding: '0.5rem',
+    backdropFilter: 'blur(10px)',
+    textAlign: 'center',
+    minWidth: '60px'
+  },
+
+  counterLabelSmall: {
+    color: '#9ca3af',
+    fontSize: '0.7rem',
+    fontWeight: '500',
+    lineHeight: 1
+  },
+
+  counterValueSmall: {
+    color: '#22c55e',
+    fontSize: '0.85rem',
+    fontWeight: 'bold',
+    lineHeight: 1
   },
 
   spacer: {
