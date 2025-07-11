@@ -1,23 +1,23 @@
 import React, { useState } from 'react';
 import TinderCard from 'react-tinder-card';
 
-// NFL Team Colors Mapping
+// Team colors configuration (keeping exact original)
 const teamColors = {
   'ARI': { primary: '#97233F', secondary: '#000000' },
   'ATL': { primary: '#A71930', secondary: '#000000' },
   'BAL': { primary: '#241773', secondary: '#000000' },
   'BUF': { primary: '#00338D', secondary: '#C60C30' },
-  'CAR': { primary: '#0085CA', secondary: '#000000' },
+  'CAR': { primary: '#0085CA', secondary: '#101820' },
   'CHI': { primary: '#0B162A', secondary: '#C83803' },
   'CIN': { primary: '#FB4F14', secondary: '#000000' },
   'CLE': { primary: '#311D00', secondary: '#FF3C00' },
-  'DAL': { primary: '#003594', secondary: '#869397' },
+  'DAL': { primary: '#003594', secondary: '#041E42' },
   'DEN': { primary: '#FB4F14', secondary: '#002244' },
   'DET': { primary: '#0076B6', secondary: '#B0B7BC' },
   'GB': { primary: '#203731', secondary: '#FFB612' },
   'HOU': { primary: '#03202F', secondary: '#A71930' },
   'IND': { primary: '#002C5F', secondary: '#A2AAAD' },
-  'JAX': { primary: '#006778', secondary: '#9F792C' },
+  'JAX': { primary: '#101820', secondary: '#D7A22A' },
   'KC': { primary: '#E31837', secondary: '#FFB81C' },
   'LV': { primary: '#000000', secondary: '#A5ACAF' },
   'LAC': { primary: '#0080C6', secondary: '#FFC20E' },
@@ -25,19 +25,18 @@ const teamColors = {
   'MIA': { primary: '#008E97', secondary: '#FC4C02' },
   'MIN': { primary: '#4F2683', secondary: '#FFC62F' },
   'NE': { primary: '#002244', secondary: '#C60C30' },
-  'NO': { primary: '#D3BC8D', secondary: '#000000' },
+  'NO': { primary: '#101820', secondary: '#D3BC8D' },
   'NYG': { primary: '#0B2265', secondary: '#A71930' },
   'NYJ': { primary: '#125740', secondary: '#000000' },
   'PHI': { primary: '#004C54', secondary: '#A5ACAF' },
-  'PIT': { primary: '#FFB612', secondary: '#000000' },
+  'PIT': { primary: '#FFB612', secondary: '#101820' },
   'SF': { primary: '#AA0000', secondary: '#B3995D' },
   'SEA': { primary: '#002244', secondary: '#69BE28' },
   'TB': { primary: '#D50A0A', secondary: '#FF7900' },
   'TEN': { primary: '#0C2340', secondary: '#4B92DB' },
-  'WSH': { primary: '#5A1414', secondary: '#FFB612' }
+  'WAS': { primary: '#5A1414', secondary: '#FFB612' }
 };
 
-// Position Icons and Shapes
 const positionConfig = {
   'QB': { icon: '🎯', shape: 'circle', color: '#3B82F6' },
   'RB': { icon: '🏃', shape: 'square', color: '#10B981' },
@@ -49,18 +48,18 @@ const positionConfig = {
 
 export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteractive = true }) {
   const [showSuccess, setShowSuccess] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
 
-  const { name, team, position, fantasyPts, auction, vorp, rookie } = player;
-  
-  const teamColor = teamColors[team] || { primary: '#6B7280', secondary: '#374151' };
-  const posConfig = positionConfig[position] || positionConfig['WR'];
+  const {
+    name, team, position,
+    fantasyPts, auction, vorp, rookie
+  } = player;
 
-  const handleSwipeEnd = () => {
-    // Simple cleanup function
-  };
+  const teamColor = teamColors[team] || { primary: '#374151', secondary: '#6B7280' };
+  const posConfig = positionConfig[position] || positionConfig['QB'];
 
   const handleSuccessfulSwipe = (direction) => {
-    console.log('Swipe success!', direction);
+    console.log('Swiped', direction);
     setShowSuccess(direction);
     
     // FIXED: Delay the onSwipe callback to allow animation to play
@@ -78,30 +77,59 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
     
     // For success animation only
     if (showSuccess) {
-      const translateX = showSuccess === 'right' ? '150px' : '-150px';
-      const rotate = showSuccess === 'right' ? '25deg' : '-25deg';
-      return `translateX(${translateX}) rotate(${rotate}) scale(1.1)`;
+      let translateX = '0px';
+      let translateY = '0px';
+      let rotate = '0deg';
+      
+      switch(showSuccess) {
+        case 'right':
+          translateX = '150px';
+          rotate = '25deg';
+          break;
+        case 'left':
+          translateX = '-150px';
+          rotate = '-25deg';
+          break;
+        case 'up':
+          translateY = '-150px';
+          rotate = '10deg';
+          break;
+        case 'down':
+          translateY = '150px';
+          rotate = '-10deg';
+          break;
+      }
+      
+      return `translateX(${translateX}) translateY(${translateY}) rotate(${rotate}) scale(1.1)`;
     }
     
     return undefined;
   };
 
+  // Updated to handle 4 directions
   const getSwipeOverlay = () => {
     if (!showSuccess) return null;
     
-    const isLike = showSuccess === 'right';
+    const swipeConfig = {
+      'up': { icon: '❤️', text: 'LOVE' },
+      'right': { icon: '✓', text: 'LIKE' },
+      'left': { icon: '~', text: 'MEH' },
+      'down': { icon: '✕', text: 'PASS' }
+    };
+    
+    const config = swipeConfig[showSuccess];
     
     return (
       <div 
-        className={`swipe-overlay ${isLike ? 'like' : 'pass'} success`}
+        className={`swipe-overlay ${showSuccess} success`}
         style={{ opacity: 1 }}
       >
         <div className="overlay-content">
           <div className="swipe-icon">
-            {isLike ? '✓' : '✕'}
+            {config.icon}
           </div>
           <div className="swipe-text">
-            {isLike ? 'LIKE' : 'PASS'}
+            {config.text}
           </div>
         </div>
       </div>
@@ -110,7 +138,7 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
 
   const cardContent = (
     <div 
-      className={`player-card ${!isInteractive ? 'background-card' : 'interactive-card'} ${showSuccess ? 'success' : ''}`}
+      className={`player-card ${!isInteractive ? 'background-card' : 'interactive-card'} ${showSuccess ? 'success' : ''} ${isDragging ? 'dragging' : ''}`}
       style={{
         '--team-primary': teamColor.primary,
         '--team-secondary': teamColor.secondary,
@@ -243,7 +271,7 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
         .player-card.dragging {
           cursor: grabbing;
           transition: none;
-          z-index: 1000;
+          z-index: 9999;
         }
 
         .player-card.success {
@@ -260,12 +288,14 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
         }
 
         .card-header {
-          padding: 24px 20px 16px;
-          background: linear-gradient(180deg, rgba(0,0,0,0.1) 0%, transparent 100%);
+          padding: 24px 20px 0px;
+          flex-shrink: 0;
         }
 
         .header-content {
-          text-align: center;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
         }
 
         .position-badge {
@@ -273,11 +303,11 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           align-items: center;
           gap: 6px;
           padding: 6px 12px;
-          border-radius: 12px;
+          border-radius: 20px;
           font-size: 0.875rem;
           font-weight: 600;
           color: white;
-          margin-bottom: 12px;
+          width: fit-content;
         }
 
         .position-icon {
@@ -285,44 +315,44 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
         }
 
         .player-name {
-          font-size: 1.5rem;
+          font-size: 1.75rem;
           font-weight: 700;
           color: white;
-          margin: 8px 0 4px;
+          margin: 0;
           line-height: 1.2;
         }
 
         .team-name {
-          font-size: 0.875rem;
+          font-size: 1rem;
+          font-weight: 600;
           color: #9ca3af;
-          font-weight: 500;
-          margin-bottom: 8px;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
         }
 
         .rookie-badge {
-          display: inline-block;
-          padding: 2px 8px;
-          background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+          background: linear-gradient(135deg, #f59e0b, #d97706);
           color: white;
+          padding: 4px 8px;
+          border-radius: 12px;
           font-size: 0.75rem;
           font-weight: 600;
-          border-radius: 8px;
           text-transform: uppercase;
-          letter-spacing: 0.025em;
+          width: fit-content;
         }
 
         .card-body {
           flex: 1;
-          padding: 0 20px 20px;
           display: flex;
           flex-direction: column;
-          gap: 20px;
+          padding: 20px;
+          gap: 24px;
         }
 
         .avatar-section {
           display: flex;
           justify-content: center;
-          margin-top: 8px;
+          align-items: center;
         }
 
         .avatar-placeholder {
@@ -332,29 +362,26 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           display: flex;
           align-items: center;
           justify-content: center;
-          border: 3px solid rgba(255, 255, 255, 0.2);
-          box-shadow: 
-            0 8px 32px rgba(0, 0, 0, 0.3),
-            inset 0 2px 8px rgba(255, 255, 255, 0.1);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+          border: 3px solid rgba(255, 255, 255, 0.1);
         }
 
         .avatar-initials {
           font-size: 2.5rem;
           font-weight: 700;
           color: white;
-          text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+          text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
         }
 
         .stats-grid {
           display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 12px;
-          margin-top: auto;
+          grid-template-columns: 1fr 1fr 1fr;
+          gap: 16px;
         }
 
         .stat-item {
           text-align: center;
-          padding: 12px 8px;
+          padding: 16px 12px;
           background: rgba(255, 255, 255, 0.05);
           border-radius: 12px;
           border: 1px solid rgba(255, 255, 255, 0.1);
@@ -384,37 +411,6 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           letter-spacing: 0.05em;
         }
 
-        .swipe-hint {
-          position: absolute;
-          bottom: 16px;
-          left: 50%;
-          transform: translateX(-50%);
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 8px 16px;
-          background: rgba(0, 0, 0, 0.8);
-          border-radius: 20px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          font-size: 0.875rem;
-          color: #d1d5db;
-          backdrop-filter: blur(10px);
-          z-index: 10;
-        }
-
-        .hint-arrow {
-          font-size: 1.25rem;
-          font-weight: bold;
-        }
-
-        .hint-left {
-          color: #ef4444;
-        }
-
-        .hint-right {
-          color: #22c55e;
-        }
-
         .swipe-overlay {
           position: absolute;
           top: 0;
@@ -426,41 +422,42 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           justify-content: center;
           border-radius: 24px;
           pointer-events: none;
-          z-index: 100;
           transition: all 0.2s ease;
         }
 
-        .swipe-overlay.like {
-          background: linear-gradient(135deg, rgba(34, 197, 94, 0.3) 0%, rgba(34, 197, 94, 0.1) 100%);
-          border: 3px solid rgba(34, 197, 94, 0.8);
-          box-shadow: 0 0 30px rgba(34, 197, 94, 0.3);
+        .swipe-overlay.up {
+          border: 4px solid #EC4899;
+          background: linear-gradient(135deg, rgba(236, 72, 153, 0.4) 0%, rgba(236, 72, 153, 0.2) 100%);
+          box-shadow: 
+            0 0 50px rgba(236, 72, 153, 0.6),
+            inset 0 0 30px rgba(236, 72, 153, 0.1);
         }
 
-        .swipe-overlay.pass {
-          background: linear-gradient(135deg, rgba(239, 68, 68, 0.3) 0%, rgba(239, 68, 68, 0.1) 100%);
-          border: 3px solid rgba(239, 68, 68, 0.8);
-          box-shadow: 0 0 30px rgba(239, 68, 68, 0.3);
-        }
-
-        .swipe-overlay.success {
-          animation: successPulse 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-
-        .swipe-overlay.success.like {
+        .swipe-overlay.right {
           border: 4px solid #22c55e;
           background: linear-gradient(135deg, rgba(34, 197, 94, 0.4) 0%, rgba(34, 197, 94, 0.2) 100%);
           box-shadow: 
             0 0 50px rgba(34, 197, 94, 0.6),
             inset 0 0 30px rgba(34, 197, 94, 0.1);
-          animation: successPulse 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
 
-        .swipe-overlay.success.pass {
+        .swipe-overlay.left {
+          border: 4px solid #F59E0B;
+          background: linear-gradient(135deg, rgba(245, 158, 11, 0.4) 0%, rgba(245, 158, 11, 0.2) 100%);
+          box-shadow: 
+            0 0 50px rgba(245, 158, 11, 0.6),
+            inset 0 0 30px rgba(245, 158, 11, 0.1);
+        }
+
+        .swipe-overlay.down {
           border: 4px solid #ef4444;
           background: linear-gradient(135deg, rgba(239, 68, 68, 0.4) 0%, rgba(239, 68, 68, 0.2) 100%);
           box-shadow: 
             0 0 50px rgba(239, 68, 68, 0.6),
             inset 0 0 30px rgba(239, 68, 68, 0.1);
+        }
+
+        .swipe-overlay.success {
           animation: successPulse 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
 
@@ -522,7 +519,6 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           left: 50%;
           transform: translate(-50%, -50%);
           pointer-events: none;
-          z-index: 150;
         }
 
         .particle {
@@ -531,71 +527,70 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           height: 6px;
           border-radius: 50%;
           opacity: 1;
-          animation: particleExplode 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+          animation: particleExplosion 0.6s ease-out forwards;
         }
+
+        .particle-1 { animation-delay: 0ms; }
+        .particle-2 { animation-delay: 50ms; }
+        .particle-3 { animation-delay: 100ms; }
+        .particle-4 { animation-delay: 150ms; }
+        .particle-5 { animation-delay: 200ms; }
+        .particle-6 { animation-delay: 250ms; }
+        .particle-7 { animation-delay: 300ms; }
+        .particle-8 { animation-delay: 350ms; }
+        .particle-9 { animation-delay: 400ms; }
+        .particle-10 { animation-delay: 450ms; }
+        .particle-11 { animation-delay: 500ms; }
+        .particle-12 { animation-delay: 550ms; }
 
         .particle-burst.right .particle {
           background: #22c55e;
-          box-shadow: 0 0 6px #22c55e;
         }
 
         .particle-burst.left .particle {
-          background: #ef4444;
-          box-shadow: 0 0 6px #ef4444;
+          background: #F59E0B;
         }
 
-        .particle-1 { animation-delay: 0.0s; }
-        .particle-2 { animation-delay: 0.1s; }
-        .particle-3 { animation-delay: 0.05s; }
-        .particle-4 { animation-delay: 0.15s; }
-        .particle-5 { animation-delay: 0.02s; }
-        .particle-6 { animation-delay: 0.12s; }
-        .particle-7 { animation-delay: 0.08s; }
-        .particle-8 { animation-delay: 0.18s; }
-        .particle-9 { animation-delay: 0.04s; }
-        .particle-10 { animation-delay: 0.14s; }
-        .particle-11 { animation-delay: 0.06s; }
-        .particle-12 { animation-delay: 0.16s; }
+        .particle-burst.up .particle {
+          background: #EC4899;
+        }
 
-        @keyframes particleExplode {
+        .particle-burst.down .particle {
+          background: #ef4444;
+        }
+
+        @keyframes particleExplosion {
           0% {
-            transform: translate(0, 0) scale(0);
-            opacity: 1;
-          }
-          15% {
-            transform: translate(0, 0) scale(1);
+            transform: scale(1) translate(0, 0);
             opacity: 1;
           }
           100% {
-            transform: translate(var(--particle-x, 0), var(--particle-y, 0)) scale(0);
+            transform: scale(0) translate(var(--random-x, 0), var(--random-y, 0));
             opacity: 0;
           }
         }
 
-        .particle-1 { --particle-x: 60px; --particle-y: -40px; }
-        .particle-2 { --particle-x: -50px; --particle-y: -30px; }
-        .particle-3 { --particle-x: 70px; --particle-y: 20px; }
-        .particle-4 { --particle-x: -60px; --particle-y: 30px; }
-        .particle-5 { --particle-x: 40px; --particle-y: -60px; }
-        .particle-6 { --particle-x: -40px; --particle-y: -50px; }
-        .particle-7 { --particle-x: 80px; --particle-y: 10px; }
-        .particle-8 { --particle-x: -70px; --particle-y: 15px; }
-        .particle-9 { --particle-x: 30px; --particle-y: 50px; }
-        .particle-10 { --particle-x: -30px; --particle-y: 60px; }
-        .particle-11 { --particle-x: 55px; --particle-y: -20px; }
-        .particle-12 { --particle-x: -55px; --particle-y: -10px; }
+        .particle-1 { --random-x: 40px; --random-y: -20px; }
+        .particle-2 { --random-x: -30px; --random-y: 35px; }
+        .particle-3 { --random-x: 25px; --random-y: 45px; }
+        .particle-4 { --random-x: -45px; --random-y: -15px; }
+        .particle-5 { --random-x: 35px; --random-y: -40px; }
+        .particle-6 { --random-x: -25px; --random-y: 30px; }
+        .particle-7 { --random-x: 50px; --random-y: 10px; }
+        .particle-8 { --random-x: -40px; --random-y: -35px; }
+        .particle-9 { --random-x: 20px; --random-y: 50px; }
+        .particle-10 { --random-x: -35px; --random-y: -25px; }
+        .particle-11 { --random-x: 45px; --random-y: -30px; }
+        .particle-12 { --random-x: -20px; --random-y: 40px; }
 
-        /* Ripple Effect */
         .ripple-effect {
           position: absolute;
           top: 50%;
           left: 50%;
-          transform: translate(-50%, -50%);
           width: 100px;
           height: 100px;
           border-radius: 50%;
           pointer-events: none;
-          z-index: 90;
           animation: ripple 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
         }
 
@@ -604,6 +599,14 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
         }
 
         .ripple-effect.left {
+          border: 3px solid #F59E0B;
+        }
+
+        .ripple-effect.up {
+          border: 3px solid #EC4899;
+        }
+
+        .ripple-effect.down {
           border: 3px solid #ef4444;
         }
 
@@ -626,7 +629,7 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           }
 
           .player-name {
-            font-size: 1.25rem;
+            font-size: 1.5rem;
           }
 
           .avatar-placeholder {
@@ -641,16 +644,26 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           .stat-value {
             font-size: 1.1rem;
           }
+        }
 
-          .swipe-hint {
-            padding: 16px;
+        /* Remove hover effects on touch devices */
+        @media (hover: none) {
+          .player-card:hover {
+            transform: none;
+            box-shadow: 
+              0 20px 40px rgba(0, 0, 0, 0.3),
+              0 0 0 1px rgba(255, 255, 255, 0.1);
+          }
+
+          .player-card.background-card:hover {
+            transform: scale(calc(0.95 - var(--card-index) * 0.03)) translateY(calc(var(--card-index) * 6px)) !important;
           }
         }
       `}</style>
     </div>
   );
 
-  // Background cards (non-interactive)
+  // Only wrap interactive cards in TinderCard
   if (!isInteractive) {
     return (
       <div 
@@ -659,9 +672,7 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           position: 'absolute',
           top: 0,
           left: 0,
-          width: '320px',
-          height: '480px',
-          pointerEvents: 'none',
+          pointerEvents: 'none'
         }}
       >
         {cardContent}
@@ -669,17 +680,21 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
     );
   }
 
-  // Interactive card with TinderCard wrapper
   return (
     <TinderCard
       className="tinder-card"
       onSwipe={(dir) => {
-        // FIXED: Only call handleSuccessfulSwipe, which now handles the delay
+        setIsDragging(false);
         handleSuccessfulSwipe(dir);
-        handleSwipeEnd();
       }}
-      onCardLeftScreen={handleSwipeEnd}
-      preventSwipe={['up', 'down']}
+      onCardLeftScreen={() => {
+        setIsDragging(false);
+      }}
+      onTouchStart={() => setIsDragging(true)}
+      onMouseDown={() => setIsDragging(true)}
+      onTouchEnd={() => setIsDragging(false)}
+      onMouseUp={() => setIsDragging(false)}
+      // REMOVED: preventSwipe={['up', 'down']} to allow all 4 directions
       swipeRequirementType="position"
       swipeThreshold={80}
       flickOnSwipe={true}
@@ -687,11 +702,9 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
         position: 'absolute',
         top: 0,
         left: 0,
-        width: '320px',
-        height: '480px',
         cursor: 'grab',
         userSelect: 'none',
-        willChange: 'transform',
+        willChange: 'transform'
       }}
     >
       {cardContent}

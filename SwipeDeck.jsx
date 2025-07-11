@@ -18,7 +18,16 @@ const POSITION_CONFIG = {
   'TE': { icon: '🎪', name: 'Tight Ends', color: '#8B5CF6' }
 };
 
-const STORAGE_KEY = 'draftswipe_prefs_v2';
+// Updated storage key for new 4-direction system
+const STORAGE_KEY = 'draftswipe_prefs_v3_4direction';
+
+// Direction to value mapping
+const DIRECTION_VALUES = {
+  'up': 2,    // Love
+  'right': 1, // Like
+  'left': 0,  // Meh
+  'down': -1  // Pass
+};
 
 export default function SwipeDeck() {
   const [allPlayers, setAllPlayers] = useState([]);
@@ -72,8 +81,10 @@ export default function SwipeDeck() {
     setIndex(0);
   };
 
+  // Updated onSwipe to handle 4 directions
   const onSwipe = (player, direction) => {
-    const newPrefs = { ...prefs, [player.id]: direction === 'right' ? 1 : -1 };
+    const value = DIRECTION_VALUES[direction];
+    const newPrefs = { ...prefs, [player.id]: value };
     setPrefs(newPrefs);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(newPrefs));
     
@@ -274,14 +285,13 @@ export default function SwipeDeck() {
         </div>
       </div>
 
-      {/* Instructions */}
+      {/* Instructions - Updated for 4 directions */}
       <div style={styles.instructions}>
-        <p>Swipe right to like, left to pass</p>
+        <p>Swipe ↑ love, → like, ← meh, ↓ pass</p>
       </div>
     </div>
   );
 }
-
 
 const styles = {
   appContainer: {
@@ -432,79 +442,76 @@ const styles = {
   positionStats: {
     display: 'flex',
     justifyContent: 'space-between',
-    fontSize: 'clamp(0.8rem, 2vw, 0.875rem)',
-    color: '#9ca3af',
-    flexWrap: 'wrap',
-    gap: '0.5rem',
-    width: '100%'
+    fontSize: 'clamp(0.75rem, 2vw, 0.85rem)',
+    color: '#d1d5db',
+    marginTop: 'auto'
   },
 
   overallProgress: {
     textAlign: 'center',
-    color: '#6b7280',
-    fontSize: 'clamp(0.9rem, 2vw, 1rem)',
-    marginTop: '2rem',
-    padding: '0',
-    boxSizing: 'border-box',
-    width: '100%'
+    color: '#d1d5db',
+    fontSize: 'clamp(0.85rem, 2vw, 0.95rem)',
+    marginTop: '1rem'
   },
 
-  // Position Header Bar Styles
+  // Position Header Bar
   positionHeaderBar: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 'clamp(0.5rem, 2vw, 1rem)',
-    background: 'rgba(255, 255, 255, 0.1)',
-    backdropFilter: 'blur(10px)',
-    marginBottom: '1rem',
     width: '100%',
-    maxWidth: '100%',
-    borderRadius: '1rem',
-    flexWrap: 'wrap',
-    gap: '0.5rem',
+    maxWidth: 'min(500px, calc(100vw - 3rem))',
+    marginBottom: 'clamp(1rem, 3vw, 1.5rem)',
+    gap: '1rem',
     boxSizing: 'border-box'
   },
 
   backButton: {
-    background: 'none',
+    background: 'rgba(255, 255, 255, 0.1)',
     border: 'none',
-    color: '#d1d5db',
+    color: 'white',
+    padding: 'clamp(0.5rem, 2vw, 0.75rem) clamp(0.75rem, 3vw, 1rem)',
+    borderRadius: '0.5rem',
     cursor: 'pointer',
-    fontSize: 'clamp(0.9rem, 2vw, 1rem)',
-    transition: 'color 0.2s ease',
-    minWidth: 'fit-content'
+    fontSize: 'clamp(0.8rem, 2vw, 0.9rem)',
+    fontWeight: '500',
+    transition: 'all 0.2s ease',
+    whiteSpace: 'nowrap'
   },
 
   positionProgress: {
     textAlign: 'center',
     flex: '1',
-    minWidth: '120px'
+    overflow: 'hidden'
   },
 
   positionProgressTitle: {
-    margin: '0',
-    fontSize: 'clamp(1rem, 2.5vw, 1.1rem)',
+    fontSize: 'clamp(1.1rem, 3vw, 1.3rem)',
     fontWeight: 'bold',
-    color: 'white'
+    margin: '0',
+    color: 'white',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap'
   },
 
   positionProgressSubtitle: {
-    margin: '0',
     fontSize: 'clamp(0.8rem, 2vw, 0.9rem)',
-    color: '#d1d5db'
+    color: '#d1d5db',
+    margin: '0',
+    marginTop: '0.25rem'
   },
 
   spacer: {
-    width: 'clamp(60px, 10vw, 120px)'
+    width: 'clamp(3rem, 8vw, 5rem)', // Match backButton approximate width
+    flexShrink: 0
   },
 
-  // Progress Bar Styles
+  // Progress Bar
   progressContainer: {
-    padding: '0',
-    marginBottom: '2rem',
     width: '100%',
-    maxWidth: '100%',
+    maxWidth: 'min(400px, calc(100vw - 3rem))',
+    marginBottom: 'clamp(1rem, 3vw, 1.5rem)',
     boxSizing: 'border-box'
   },
 
@@ -512,7 +519,7 @@ const styles = {
     width: '100%',
     height: '8px',
     background: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: '4px',
+    borderRadius: '1rem',
     overflow: 'hidden',
     marginBottom: '0.5rem'
   },
@@ -520,23 +527,20 @@ const styles = {
   progressFill: {
     height: '100%',
     transition: 'width 0.3s ease',
-    borderRadius: '4px'
+    borderRadius: '1rem'
   },
 
   progressText: {
     textAlign: 'center',
+    color: '#d1d5db',
     fontSize: 'clamp(0.8rem, 2vw, 0.9rem)',
-    color: '#d1d5db'
+    fontWeight: 'bold'
   },
 
-  // Deck Styles - ensure cards are properly contained
+  // Card Deck
   deckContainer: {
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: '2rem',
-    width: '100%',
-    padding: '0',
+    position: 'relative',
+    marginBottom: 'clamp(1rem, 3vw, 1.5rem)',
     boxSizing: 'border-box'
   },
 
@@ -623,7 +627,7 @@ const styles = {
     width: '100%'
   },
 
-  // Instructions
+  // Instructions - Updated text only
   instructions: {
     textAlign: 'center',
     marginTop: '1rem',
