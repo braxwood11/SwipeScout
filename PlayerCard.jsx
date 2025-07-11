@@ -200,7 +200,7 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           </div>
         </div>
 
-        {/* Stats section */}
+        {/* Stats section - FIXED: Better responsive layout */}
         <div className="stats-grid">
           <div className="stat-item">
             <div className="stat-value">{fantasyPts?.toFixed(1) || '0.0'}</div>
@@ -225,8 +225,9 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
       <style jsx>{`
         .player-card {
           will-change: transform;
-          width: 320px;
-          height: 480px;
+          width: min(320px, calc(100vw - 2rem));
+          height: min(480px, calc(100vh - 200px));
+          max-height: 500px;
           background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
           border-radius: 24px;
           overflow: hidden;
@@ -239,6 +240,7 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           flex-direction: column;
           cursor: grab;
           user-select: none;
+          box-sizing: border-box;
         }
 
         .player-card.interactive-card {
@@ -288,14 +290,14 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
         }
 
         .card-header {
-          padding: 24px 20px 0px;
+          padding: clamp(1rem, 4vw, 1.5rem) clamp(1rem, 4vw, 1.25rem) 0;
           flex-shrink: 0;
         }
 
         .header-content {
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: clamp(0.5rem, 2vw, 0.75rem);
         }
 
         .position-badge {
@@ -304,26 +306,29 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           gap: 6px;
           padding: 6px 12px;
           border-radius: 20px;
-          font-size: 0.875rem;
+          font-size: clamp(0.7rem, 2vw, 0.875rem);
           font-weight: 600;
           color: white;
           width: fit-content;
         }
 
         .position-icon {
-          font-size: 1rem;
+          font-size: clamp(0.8rem, 2.5vw, 1rem);
         }
 
         .player-name {
-          font-size: 1.75rem;
+          font-size: clamp(1.25rem, 4vw, 1.75rem);
           font-weight: 700;
           color: white;
           margin: 0;
           line-height: 1.2;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
         .team-name {
-          font-size: 1rem;
+          font-size: clamp(0.9rem, 2.5vw, 1rem);
           font-weight: 600;
           color: #9ca3af;
           text-transform: uppercase;
@@ -335,7 +340,7 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           color: white;
           padding: 4px 8px;
           border-radius: 12px;
-          font-size: 0.75rem;
+          font-size: clamp(0.65rem, 2vw, 0.75rem);
           font-weight: 600;
           text-transform: uppercase;
           width: fit-content;
@@ -345,19 +350,22 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           flex: 1;
           display: flex;
           flex-direction: column;
-          padding: 20px;
-          gap: 24px;
+          padding: clamp(0.75rem, 3vw, 1.25rem);
+          gap: clamp(1rem, 4vw, 1.5rem);
+          min-height: 0;
         }
 
         .avatar-section {
           display: flex;
           justify-content: center;
           align-items: center;
+          flex: 1;
+          min-height: 0;
         }
 
         .avatar-placeholder {
-          width: 120px;
-          height: 120px;
+          width: clamp(80px, 20vw, 120px);
+          height: clamp(80px, 20vw, 120px);
           border-radius: 50%;
           display: flex;
           align-items: center;
@@ -367,24 +375,33 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
         }
 
         .avatar-initials {
-          font-size: 2.5rem;
+          font-size: clamp(1.5rem, 5vw, 2.5rem);
           font-weight: 700;
           color: white;
           text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
         }
 
+        /* FIXED: Responsive stats grid that doesn't overflow */
         .stats-grid {
           display: grid;
           grid-template-columns: 1fr 1fr 1fr;
-          gap: 16px;
+          gap: clamp(0.5rem, 2vw, 0.75rem);
+          margin-top: auto;
+          flex-shrink: 0;
         }
 
         .stat-item {
           text-align: center;
-          padding: 16px 12px;
+          padding: clamp(0.75rem, 3vw, 1rem) clamp(0.5rem, 2vw, 0.75rem);
           background: rgba(255, 255, 255, 0.05);
           border-radius: 12px;
           border: 1px solid rgba(255, 255, 255, 0.1);
+          backdrop-filter: blur(10px);
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          gap: clamp(0.25rem, 1vw, 0.5rem);
         }
 
         .stat-item.positive .stat-value {
@@ -396,19 +413,27 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
         }
 
         .stat-value {
-          font-size: 1.25rem;
+          font-size: clamp(0.9rem, 3vw, 1.25rem);
           font-weight: 700;
           color: white;
           line-height: 1.2;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
+        /* FIXED: Allow text wrapping for stat labels */
         .stat-label {
-          font-size: 0.75rem;
+          font-size: clamp(0.6rem, 2vw, 0.75rem);
           color: #9ca3af;
           font-weight: 500;
-          margin-top: 4px;
           text-transform: uppercase;
           letter-spacing: 0.05em;
+          line-height: 1.2;
+          word-wrap: break-word;
+          hyphens: auto;
+          text-align: center;
+          overflow-wrap: break-word;
         }
 
         .swipe-overlay {
@@ -621,28 +646,36 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           }
         }
 
-        /* Mobile Optimizations */
-        @media (max-width: 640px) {
+        /* Enhanced mobile responsiveness */
+        @media (max-width: 480px) {
           .player-card {
-            width: 280px;
-            height: 420px;
+            width: calc(100vw - 1.5rem);
+            height: min(420px, calc(100vh - 180px));
           }
 
-          .player-name {
-            font-size: 1.5rem;
+          .stats-grid {
+            gap: 0.5rem;
           }
 
-          .avatar-placeholder {
-            width: 100px;
-            height: 100px;
-          }
-
-          .avatar-initials {
-            font-size: 2rem;
+          .stat-item {
+            padding: 0.75rem 0.5rem;
           }
 
           .stat-value {
-            font-size: 1.1rem;
+            font-size: 1rem;
+          }
+
+          .stat-label {
+            font-size: 0.6rem;
+          }
+
+          .avatar-placeholder {
+            width: 80px;
+            height: 80px;
+          }
+
+          .avatar-initials {
+            font-size: 1.8rem;
           }
         }
 
@@ -663,7 +696,7 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
     </div>
   );
 
-  // Only wrap interactive cards in TinderCard
+  // Only wrap interactive cards in TinderCard - KEEPING NO Z-INDEX to prevent translucency issue
   if (!isInteractive) {
     return (
       <div 

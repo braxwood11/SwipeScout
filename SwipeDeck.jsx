@@ -4,10 +4,10 @@ import { normalizePlayer } from '../utils/normalizePlayer';
 
 // Position limits configuration
 const POSITION_LIMITS = {
-  'QB': 25,
-  'RB': 50, 
-  'WR': 75,
-  'TE': 25
+  'QB': 32,
+  'RB': 75, 
+  'WR': 100,
+  'TE': 40
 };
 
 // Position display configuration
@@ -20,6 +20,8 @@ const POSITION_CONFIG = {
 
 // Updated storage key for new 4-direction system
 const STORAGE_KEY = 'draftswipe_prefs_v3_4direction';
+// New storage key for position progress
+const PROGRESS_STORAGE_KEY = 'draftswipe_progress_v1';
 
 // Direction to value mapping
 const DIRECTION_VALUES = {
@@ -40,6 +42,23 @@ export default function SwipeDeck() {
     return raw ? JSON.parse(raw) : {};
   });
   const [completedPositions, setCompletedPositions] = useState(new Set());
+  // New state for tracking progress per position
+  const [positionProgress, setPositionProgress] = useState(() => {
+    const raw = localStorage.getItem(PROGRESS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  });
+
+  // Helper function to save position progress
+  const savePositionProgress = (position, currentIndex) => {
+    const newProgress = { ...positionProgress, [position]: currentIndex };
+    setPositionProgress(newProgress);
+    localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(newProgress));
+  };
+
+  // Helper function to get saved progress for a position
+  const getSavedProgress = (position) => {
+    return positionProgress[position] || 0;
+  };
 
   // Handle window resize for responsive design
   useEffect(() => {
@@ -57,6 +76,13 @@ export default function SwipeDeck() {
       .then(r => r.json())
       .then(raw => setAllPlayers(raw.map(normalizePlayer)));
   }, []);
+
+  // Save progress whenever index changes and we have a current position
+  useEffect(() => {
+    if (currentPosition && index > 0) {
+      savePositionProgress(currentPosition, index);
+    }
+  }, [index, currentPosition]);
 
   // Process players by position when data loads
   const processedPositions = React.useMemo(() => {
@@ -78,7 +104,9 @@ export default function SwipeDeck() {
   const handlePositionSelect = (position) => {
     setCurrentPosition(position);
     setPositionPlayers(processedPositions[position] || []);
-    setIndex(0);
+    // Restore saved progress for this position
+    const savedIndex = getSavedProgress(position);
+    setIndex(savedIndex);
   };
 
   // Updated onSwipe to handle 4 directions
@@ -94,6 +122,11 @@ export default function SwipeDeck() {
     // Mark position as completed if we've reached the end
     if (nextIndex >= positionPlayers.length) {
       setCompletedPositions(prev => new Set([...prev, currentPosition]));
+      // Clear progress for completed position
+      const newProgress = { ...positionProgress };
+      delete newProgress[currentPosition];
+      setPositionProgress(newProgress);
+      localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(newProgress));
     }
   };
 
@@ -111,12 +144,36 @@ export default function SwipeDeck() {
       updated.delete(currentPosition);
       return updated;
     });
+    // Clear saved progress for this position
+    const newProgress = { ...positionProgress };
+    delete newProgress[currentPosition];
+    setPositionProgress(newProgress);
+    localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(newProgress));
   };
 
   const goBackToPositions = () => {
+    // Save current progress before leaving
+    if (currentPosition && index > 0 && index < positionPlayers.length) {
+      savePositionProgress(currentPosition, index);
+    }
     setCurrentPosition(null);
     setPositionPlayers([]);
     setIndex(0);
+  };
+
+  // Helper function to get position status and progress info
+  const getPositionStatus = (position) => {
+    const playerCount = processedPositions[position]?.length || 0;
+    const isCompleted = completedPositions.has(position);
+    const currentProgress = positionProgress[position] || 0;
+    
+    if (isCompleted) {
+      return { status: 'Completed', progress: playerCount, total: playerCount };
+    } else if (currentProgress > 0) {
+      return { status: 'In Progress', progress: currentProgress, total: playerCount };
+    } else {
+      return { status: 'Not Started', progress: 0, total: playerCount };
+    }
   };
 
   // Loading state
@@ -142,9 +199,9 @@ export default function SwipeDeck() {
 
           <div style={styles.positionGrid}>
             {Object.entries(POSITION_CONFIG).map(([position, config]) => {
-              const playerCount = processedPositions[position]?.length || 0;
-              const limit = POSITION_LIMITS[position];
-              const isCompleted = completedPositions.has(position);
+              const { status, progress, total } = getPositionStatus(position);
+              const isCompleted = status === 'Completed';
+              const isInProgress = status === 'In Progress';
               
               return (
                 <button
@@ -164,13 +221,33 @@ export default function SwipeDeck() {
                     </div>
                     <div style={styles.positionDetails}>
                       <h3 style={styles.positionDetailsTitle}>{config.name}</h3>
-                      <p style={styles.positionDetailsSubtitle}>Top {limit} players</p>
+                      <p style={styles.positionDetailsSubtitle}>Top {POSITION_LIMITS[position]} players</p>
                     </div>
                   </div>
                   
                   <div style={styles.positionStats}>
-                    <span>{playerCount} players loaded</span>
-                    <span>{isCompleted ? 'Completed' : 'Not started'}</span>
+                    <span>{total} players loaded</span>
+                    <span style={{
+                      color: isCompleted ? '#10B981' : isInProgress ? '#F59E0B' : '#9CA3AF'
+                    }}>
+                      {status}
+                    </span>
+                    {isInProgress && (
+                      <div style={styles.progressIndicator}>
+                        <div style={styles.progressBar}>
+                          <div 
+                            style={{
+                              ...styles.progressFill,
+                              width: `${(progress / total) * 100}%`,
+                              backgroundColor: config.color
+                            }}
+                          />
+                        </div>
+                        <span style={styles.progressText}>
+                          {progress} / {total}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </button>
               );
@@ -283,168 +360,239 @@ export default function SwipeDeck() {
             isInteractive={true}
           />
         </div>
-      </div>
+        
+        {/* Action Buttons for Desktop/Larger Screens */}
+        {!isMobile && (
+          <div style={styles.desktopActions}>
+            <button 
+              style={{...styles.actionBtn, ...styles.passBtn}}
+              onClick={() => onSwipe(currentPlayer, 'down')}
+            >
+              Pass
+            </button>
+            <button 
+              style={{...styles.actionBtn, ...styles.mehBtn}}
+              onClick={() => onSwipe(currentPlayer, 'left')}
+            >
+              Meh
+            </button>
+            <button 
+              style={{...styles.actionBtn, ...styles.likeBtn}}
+              onClick={() => onSwipe(currentPlayer, 'right')}
+            >
+              Like
+            </button>
+            <button 
+              style={{...styles.actionBtn, ...styles.loveBtn}}
+              onClick={() => onSwipe(currentPlayer, 'up')}
+            >
+              Love
+            </button>
+          </div>
+        )}
 
-      {/* Instructions - Updated for 4 directions */}
-      <div style={styles.instructions}>
-        <p>Swipe ↑ love, → like, ← meh, ↓ pass</p>
+        {/* Swipe Instructions for Mobile */}
+        {isMobile && (
+          <div style={styles.swipeInstructions}>
+            <div style={styles.instructionRow}>
+              <span style={styles.instructionItem}>
+                <span style={styles.instructionIcon}>👆</span>
+                <span style={styles.instructionText}>Swipe Up: Love</span>
+              </span>
+            </div>
+            <div style={styles.instructionRow}>
+              <span style={styles.instructionItem}>
+                <span style={styles.instructionIcon}>👈</span>
+                <span style={styles.instructionText}>Swipe Left: Meh</span>
+              </span>
+              <span style={styles.instructionItem}>
+                <span style={styles.instructionIcon}>👉</span>
+                <span style={styles.instructionText}>Swipe Right: Like</span>
+              </span>
+            </div>
+            <div style={styles.instructionRow}>
+              <span style={styles.instructionItem}>
+                <span style={styles.instructionIcon}>👇</span>
+                <span style={styles.instructionText}>Swipe Down: Pass</span>
+              </span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
+// Enhanced styles with new progress indicator styles
 const styles = {
   appContainer: {
     minHeight: '100vh',
-    width: '100vw', // Use full viewport width
-    maxWidth: '100vw', // Prevent any overflow
-    background: 'linear-gradient(135deg, #1e293b 0%, #7c3aed 50%, #1e293b 100%)',
-    backgroundAttachment: 'fixed',
+    background: 'linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%)',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    justifyContent: 'flex-start',
-    padding: 'clamp(0.75rem, 2vw, 1.5rem)',
-    color: 'white',
-    overflowX: 'hidden', // Prevent horizontal scroll
+    justifyContent: 'center',
+    padding: 'clamp(1rem, 3vw, 1.5rem)',
+    fontFamily: 'system-ui, -apple-system, sans-serif',
     boxSizing: 'border-box',
-    margin: 0, // Ensure no margin
-    position: 'relative' // Establish containing block
+    width: '100vw',
+    overflow: 'hidden'
   },
 
-  // Position Selection Screen Styles
+  loadingScreen: {
+    textAlign: 'center',
+    color: 'white',
+    fontSize: 'clamp(1.2rem, 3vw, 1.5rem)'
+  },
+
   positionSelectionScreen: {
-    padding: '0',
-    maxWidth: '100%',
-    margin: '0',
+    maxWidth: 'min(600px, calc(100vw - 3rem))',
     width: '100%',
-    minHeight: 'calc(100vh - 3rem)', // Account for appContainer padding
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'center',
-    alignItems: 'center', // Center content
+    textAlign: 'center',
     boxSizing: 'border-box'
   },
 
   positionHeader: {
-    textAlign: 'center',
-    marginBottom: 'clamp(2rem, 5vh, 3rem)',
-    padding: '0',
-    width: '100%',
-    maxWidth: '100%'
+    marginBottom: 'clamp(2rem, 5vw, 3rem)'
   },
 
   positionHeaderTitle: {
-    fontSize: 'clamp(2rem, 5vw, 3rem)',
+    fontSize: 'clamp(2rem, 6vw, 3.5rem)',
     fontWeight: 'bold',
-    marginBottom: '0.5rem',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    background: 'linear-gradient(135deg, #3B82F6 0%, #10B981 50%, #F59E0B 100%)',
     WebkitBackgroundClip: 'text',
     WebkitTextFillColor: 'transparent',
     backgroundClip: 'text',
-    margin: '0 0 0.5rem 0'
+    margin: '0 0 1rem 0'
   },
 
   positionHeaderSubtitle: {
-    fontSize: 'clamp(1rem, 2.5vw, 1.1rem)',
+    fontSize: 'clamp(0.9rem, 2.5vw, 1.1rem)',
     color: '#d1d5db',
     margin: '0'
   },
 
   positionGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, calc(100vw - 4rem)), 1fr))', // Better responsive sizing
-    gap: 'clamp(0.75rem, 2.5vw, 1.5rem)',
-    marginBottom: '2rem',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+    gap: 'clamp(1rem, 3vw, 1.5rem)',
+    marginBottom: 'clamp(2rem, 4vw, 3rem)',
     width: '100%',
-    maxWidth: 'min(1200px, calc(100vw - 3rem))', // Ensure it fits in viewport
-    padding: '0',
     boxSizing: 'border-box'
   },
 
   positionCard: {
-    position: 'relative',
-    background: 'rgba(255, 255, 255, 0.1)',
-    backdropFilter: 'blur(10px)',
-    border: '2px solid',
+    background: 'rgba(255, 255, 255, 0.05)',
+    border: '2px solid rgba(255, 255, 255, 0.1)',
     borderRadius: '1rem',
     padding: 'clamp(1rem, 3vw, 1.5rem)',
     cursor: 'pointer',
     transition: 'all 0.3s ease',
+    backdropFilter: 'blur(10px)',
+    color: 'white',
+    textAlign: 'left',
+    position: 'relative',
+    overflow: 'hidden',
+    minHeight: '120px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '1rem',
-    color: 'white',
-    minHeight: '120px',
-    width: '100%',
-    boxSizing: 'border-box'
+    justifyContent: 'space-between'
   },
 
   positionCardCompleted: {
-    background: 'rgba(34, 197, 94, 0.2)',
-    borderColor: '#22c55e'
+    background: 'rgba(16, 185, 129, 0.1)',
+    borderColor: 'rgba(16, 185, 129, 0.3)'
   },
 
   completionBadge: {
     position: 'absolute',
     top: '0.5rem',
     right: '0.5rem',
-    color: '#22c55e',
-    fontSize: '1.5rem',
+    background: '#10B981',
+    color: 'white',
+    borderRadius: '50%',
+    width: '24px',
+    height: '24px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '0.8rem',
     fontWeight: 'bold'
   },
 
   positionInfo: {
     display: 'flex',
     alignItems: 'center',
-    gap: '1rem',
-    width: '100%',
-    overflow: 'hidden'
+    gap: 'clamp(0.75rem, 2vw, 1rem)',
+    marginBottom: '1rem'
   },
 
   positionIcon: {
-    width: 'clamp(3rem, 8vw, 4rem)',
-    height: 'clamp(3rem, 8vw, 4rem)',
-    borderRadius: '50%',
+    width: 'clamp(2.5rem, 6vw, 3rem)',
+    height: 'clamp(2.5rem, 6vw, 3rem)',
+    borderRadius: '0.75rem',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: 'clamp(1.5rem, 4vw, 2rem)',
-    color: 'white',
+    fontSize: 'clamp(1.2rem, 3vw, 1.5rem)',
     flexShrink: 0
   },
 
   positionDetails: {
-    textAlign: 'left',
-    flex: '1',
+    flex: 1,
     overflow: 'hidden'
   },
 
   positionDetailsTitle: {
-    fontSize: 'clamp(1.1rem, 3vw, 1.25rem)',
+    fontSize: 'clamp(1rem, 2.5vw, 1.2rem)',
     fontWeight: 'bold',
     margin: '0',
-    color: 'white',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap'
   },
 
   positionDetailsSubtitle: {
-    margin: '0',
-    color: '#d1d5db',
     fontSize: 'clamp(0.8rem, 2vw, 0.9rem)',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap'
+    color: '#d1d5db',
+    margin: '0.25rem 0 0 0'
   },
 
   positionStats: {
     display: 'flex',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
+    gap: '0.5rem',
     fontSize: 'clamp(0.75rem, 2vw, 0.85rem)',
     color: '#d1d5db',
     marginTop: 'auto'
+  },
+
+  // New progress indicator styles
+  progressIndicator: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.25rem',
+    marginTop: '0.5rem'
+  },
+
+  progressBar: {
+    width: '100%',
+    height: '4px',
+    background: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: '2px',
+    overflow: 'hidden'
+  },
+
+  progressFill: {
+    height: '100%',
+    transition: 'width 0.3s ease',
+    borderRadius: '2px'
+  },
+
+  progressText: {
+    fontSize: '0.75rem',
+    color: '#9CA3AF',
+    textAlign: 'center'
   },
 
   overallProgress: {
@@ -503,38 +651,16 @@ const styles = {
   },
 
   spacer: {
-    width: 'clamp(3rem, 8vw, 5rem)', // Match backButton approximate width
+    width: 'clamp(3rem, 8vw, 5rem)',
     flexShrink: 0
   },
 
-  // Progress Bar
+  // Progress Container
   progressContainer: {
     width: '100%',
     maxWidth: 'min(400px, calc(100vw - 3rem))',
     marginBottom: 'clamp(1rem, 3vw, 1.5rem)',
     boxSizing: 'border-box'
-  },
-
-  progressBar: {
-    width: '100%',
-    height: '8px',
-    background: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: '1rem',
-    overflow: 'hidden',
-    marginBottom: '0.5rem'
-  },
-
-  progressFill: {
-    height: '100%',
-    transition: 'width 0.3s ease',
-    borderRadius: '1rem'
-  },
-
-  progressText: {
-    textAlign: 'center',
-    color: '#d1d5db',
-    fontSize: 'clamp(0.8rem, 2vw, 0.9rem)',
-    fontWeight: 'bold'
   },
 
   // Card Deck
@@ -546,95 +672,148 @@ const styles = {
 
   deck: {
     position: 'relative',
-    width: 'min(320px, calc(100vw - 4rem))', // Ensure proper spacing from edges
-    height: 'min(450px, 60vh)',
-    maxHeight: '500px'
-  },
-
-  // Loading and Completion Styles
-  loadingScreen: {
-    textAlign: 'center',
-    color: 'white',
-    padding: 'clamp(2rem, 5vw, 3rem)',
+    width: 'min(320px, calc(100vw - 3rem))',
+    height: 'min(480px, calc(100vh - 300px))',
+    flexShrink: 0,
+    margin: '0 auto',
     display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'center',
     alignItems: 'center',
-    minHeight: '50vh',
-    width: '100%',
-    boxSizing: 'border-box'
+    justifyContent: 'center'
   },
 
+  // Desktop action buttons
+  desktopActions: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: '1rem',
+    marginTop: '1.5rem',
+    flexWrap: 'wrap'
+  },
+
+  actionBtn: {
+    padding: '0.75rem 1.5rem',
+    border: 'none',
+    borderRadius: '0.75rem',
+    fontSize: '1rem',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    minWidth: '90px',
+    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
+  },
+
+  // Swipe instructions for mobile
+  swipeInstructions: {
+    marginTop: '1.5rem',
+    padding: '1rem',
+    background: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: '0.75rem',
+    backdropFilter: 'blur(10px)',
+    border: '1px solid rgba(255, 255, 255, 0.1)'
+  },
+
+  instructionRow: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: '1rem',
+    marginBottom: '0.5rem'
+  },
+
+  instructionItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    flex: 1,
+    justifyContent: 'center',
+    maxWidth: '140px'
+  },
+
+  instructionIcon: {
+    fontSize: '1.2rem'
+  },
+
+  instructionText: {
+    color: '#d1d5db',
+    fontSize: '0.85rem',
+    fontWeight: '500',
+    whiteSpace: 'nowrap'
+  },
+
+  passBtn: {
+    background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+    color: 'white'
+  },
+
+  mehBtn: {
+    background: 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)',
+    color: 'white'
+  },
+
+  likeBtn: {
+    background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+    color: 'white'
+  },
+
+  loveBtn: {
+    background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+    color: 'white'
+  },
+
+  // Completion screen
   completionScreen: {
     textAlign: 'center',
     color: 'white',
-    maxWidth: 'min(500px, calc(100vw - 3rem))', // Responsive max width
-    padding: 'clamp(1rem, 3vw, 2rem)',
-    margin: '0 auto',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'center',
-    alignItems: 'center',
-    minHeight: '50vh',
-    width: '100%',
+    padding: 'clamp(2rem, 5vw, 3rem)',
+    maxWidth: 'min(500px, calc(100vw - 3rem))',
     boxSizing: 'border-box'
   },
 
   completionTitle: {
-    fontSize: 'clamp(1.5rem, 4vw, 2rem)',
-    marginBottom: '1rem'
+    fontSize: 'clamp(1.5rem, 4vw, 2.5rem)',
+    fontWeight: 'bold',
+    marginBottom: '1rem',
+    background: 'linear-gradient(135deg, #22c55e 0%, #3B82F6 100%)',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+    backgroundClip: 'text'
   },
 
   completionSubtitle: {
+    fontSize: 'clamp(0.9rem, 2.5vw, 1.1rem)',
     color: '#d1d5db',
-    marginBottom: '2rem',
-    fontSize: 'clamp(1rem, 2.5vw, 1.1rem)',
-    lineHeight: '1.5'
+    marginBottom: '2rem'
   },
 
   completionActions: {
     display: 'flex',
     flexDirection: 'column',
     gap: '1rem',
-    marginTop: '2rem',
-    width: '100%',
-    maxWidth: '300px'
+    alignItems: 'center'
   },
 
   primaryBtn: {
-    background: '#3b82f6',
+    background: 'linear-gradient(135deg, #3B82F6 0%, #1d4ed8 100%)',
     color: 'white',
     border: 'none',
-    padding: 'clamp(0.8rem, 2vw, 1rem) clamp(1.5rem, 3vw, 2rem)',
-    borderRadius: '0.5rem',
-    fontSize: 'clamp(0.9rem, 2vw, 1rem)',
-    fontWeight: 'bold',
+    padding: '1rem 2rem',
+    borderRadius: '0.75rem',
+    fontSize: '1rem',
+    fontWeight: '600',
     cursor: 'pointer',
     transition: 'all 0.2s ease',
-    width: '100%'
+    minWidth: '200px'
   },
 
   secondaryBtn: {
-    background: '#6b7280',
+    background: 'rgba(255, 255, 255, 0.1)',
     color: 'white',
-    border: 'none',
-    padding: 'clamp(0.8rem, 2vw, 1rem) clamp(1.5rem, 3vw, 2rem)',
-    borderRadius: '0.5rem',
-    fontSize: 'clamp(0.9rem, 2vw, 1rem)',
-    fontWeight: 'bold',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    padding: '1rem 2rem',
+    borderRadius: '0.75rem',
+    fontSize: '1rem',
+    fontWeight: '600',
     cursor: 'pointer',
     transition: 'all 0.2s ease',
-    width: '100%'
-  },
-
-  // Instructions - Updated text only
-  instructions: {
-    textAlign: 'center',
-    marginTop: '1rem',
-    color: '#9ca3af',
-    fontSize: 'clamp(0.8rem, 2vw, 0.9rem)',
-    padding: '0',
-    width: '100%',
-    boxSizing: 'border-box'
+    minWidth: '200px'
   }
 };
