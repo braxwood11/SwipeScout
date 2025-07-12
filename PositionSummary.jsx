@@ -405,7 +405,7 @@ export default function PositionSummary({ position, onContinue, onRestart }) {
         {/* Action Buttons */}
         <div style={styles.actions}>
           <button onClick={onContinue} style={styles.primaryButton}>
-            Continue to Next Position
+            View other positions
           </button>
           <button onClick={onRestart} style={styles.secondaryButton}>
             Restart This Position

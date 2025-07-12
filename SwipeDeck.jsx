@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import PlayerCard from './PlayerCard';
 import { normalizePlayer } from '../utils/normalizePlayer';
 import PositionSummary from './PositionSummary';
+import OverallSummary from './OverallSummary';
 
 // Position limits configuration
 const POSITION_LIMITS = {
@@ -27,7 +28,6 @@ const PROGRESS_STORAGE_KEY = 'draftswipe_progress_v1';
 const COMPLETED_POSITIONS_KEY = 'draftswipe_completed_positions_v1';
 // SWIPE COUNTER: Storage key for global swipe counter
 const SWIPE_COUNTER_KEY = 'draftswipe_global_counter';
-const [showSummary, setShowSummary] = useState(false);
 
 // Direction to value mapping
 const DIRECTION_VALUES = {
@@ -42,6 +42,7 @@ export default function SwipeDeck() {
   const [currentPosition, setCurrentPosition] = useState(null);
   const [positionPlayers, setPositionPlayers] = useState([]);
   const [index, setIndex] = useState(0);
+  const [showSummary, setShowSummary] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [prefs, setPrefs] = useState(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -223,6 +224,24 @@ export default function SwipeDeck() {
       </div>
     );
   }
+
+  // Show overall summary once all positions are complete
+if (completedPositions.size === Object.keys(POSITION_CONFIG).length) {
+  return (
+    <OverallSummary 
+      onViewDraftPlan={() => {
+        window.location.href = '?plan'; // Or navigate however you'd like
+      }}
+      onStartOver={() => {
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(PROGRESS_STORAGE_KEY);
+        localStorage.removeItem(COMPLETED_POSITIONS_KEY);
+        setCompletedPositions(new Set());
+        setPrefs({});
+      }}
+    />
+  );
+}
 
   // Position Selection Screen
   if (!currentPosition) {

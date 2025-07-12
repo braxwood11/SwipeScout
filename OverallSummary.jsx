@@ -47,22 +47,3 @@ const styles = {
     color: '#d1d5db'
   }
 };
-
-// In your position selection screen, add logic to show overall summary
-if (allPositionsCompleted) {
-  return (
-    <OverallSummary 
-      onViewDraftPlan={() => {
-        // Navigate to draft plan or final recommendations
-        window.location.href = '?plan';
-      }}
-      onStartOver={() => {
-        // Clear all data and start fresh
-        localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem(PROGRESS_STORAGE_KEY);
-        localStorage.removeItem(COMPLETED_POSITIONS_KEY);
-        window.location.reload();
-      }}
-    />
-  );
-}

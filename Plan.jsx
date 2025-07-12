@@ -1,6 +1,6 @@
 // src/pages/Plan.jsx
 import {useEffect, useState} from 'react';
-import {makeDraftPlan} from '../utils/makeDraftPlan';
+import {createEnhancedDraftPlan} from '../utils/enhancedDraftPlan.jsx';
 
 export default function Plan() {
   const [plan, setPlan] = useState(null);
@@ -10,7 +10,7 @@ export default function Plan() {
       fetch('/players.json').then(r=>r.json()),
       JSON.parse(localStorage.getItem('draftswipe_prefs_v1')||'{}')
     ]).then(([players, prefs]) => {
-      setPlan(makeDraftPlan(players, prefs));
+      setPlan(createEnhancedDraftPlan(players, prefs));
     });
   }, []);
 
