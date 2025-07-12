@@ -22,6 +22,8 @@ const POSITION_CONFIG = {
 const STORAGE_KEY = 'draftswipe_prefs_v3_4direction';
 // New storage key for position progress
 const PROGRESS_STORAGE_KEY = 'draftswipe_progress_v1';
+// NEW: Storage key for completed positions
+const COMPLETED_POSITIONS_KEY = 'draftswipe_completed_positions_v1';
 // SWIPE COUNTER: Storage key for global swipe counter
 const SWIPE_COUNTER_KEY = 'draftswipe_global_counter';
 
@@ -43,7 +45,13 @@ export default function SwipeDeck() {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
   });
-  const [completedPositions, setCompletedPositions] = useState(new Set());
+  
+  // FIXED: Load completed positions from localStorage on startup
+  const [completedPositions, setCompletedPositions] = useState(() => {
+    const raw = localStorage.getItem(COMPLETED_POSITIONS_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  });
+  
   // New state for tracking progress per position
   const [positionProgress, setPositionProgress] = useState(() => {
     const raw = localStorage.getItem(PROGRESS_STORAGE_KEY);
@@ -54,6 +62,12 @@ export default function SwipeDeck() {
     const stored = localStorage.getItem(SWIPE_COUNTER_KEY);
     return stored ? parseInt(stored, 10) : 0;
   });
+
+  // NEW: Helper function to save completed positions
+  const saveCompletedPositions = (newCompletedPositions) => {
+    setCompletedPositions(newCompletedPositions);
+    localStorage.setItem(COMPLETED_POSITIONS_KEY, JSON.stringify([...newCompletedPositions]));
+  };
 
   // Helper function to save position progress
   const savePositionProgress = (position, currentIndex) => {
@@ -148,7 +162,10 @@ export default function SwipeDeck() {
     
     // Mark position as completed if we've reached the end
     if (nextIndex >= positionPlayers.length) {
-      setCompletedPositions(prev => new Set([...prev, currentPosition]));
+      // FIXED: Use the helper function to save completed positions
+      const newCompletedPositions = new Set([...completedPositions, currentPosition]);
+      saveCompletedPositions(newCompletedPositions);
+      
       // Clear progress for completed position
       const newProgress = { ...positionProgress };
       delete newProgress[currentPosition];
@@ -166,11 +183,12 @@ export default function SwipeDeck() {
     });
     setPrefs(newPrefs);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(newPrefs));
-    setCompletedPositions(prev => {
-      const updated = new Set(prev);
-      updated.delete(currentPosition);
-      return updated;
-    });
+    
+    // FIXED: Use helper function to save completed positions
+    const newCompletedPositions = new Set(completedPositions);
+    newCompletedPositions.delete(currentPosition);
+    saveCompletedPositions(newCompletedPositions);
+    
     // Clear saved progress for this position
     const newProgress = { ...positionProgress };
     delete newProgress[currentPosition];
@@ -324,7 +342,7 @@ export default function SwipeDeck() {
       {/* Position Header */}
       <div style={styles.positionHeaderBar}>
         <button onClick={goBackToPositions} style={styles.backButton}>
-          ← Back to Positions
+          ← Back
         </button>
         <div style={styles.positionProgress}>
           <h3 style={styles.positionProgressTitle}>{POSITION_CONFIG[currentPosition]?.name}</h3>
