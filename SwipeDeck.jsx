@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import PlayerCard from './PlayerCard';
 import { normalizePlayer } from '../utils/normalizePlayer';
+import PositionSummary from './PositionSummary';
 
 // Position limits configuration
 const POSITION_LIMITS = {
@@ -26,6 +27,7 @@ const PROGRESS_STORAGE_KEY = 'draftswipe_progress_v1';
 const COMPLETED_POSITIONS_KEY = 'draftswipe_completed_positions_v1';
 // SWIPE COUNTER: Storage key for global swipe counter
 const SWIPE_COUNTER_KEY = 'draftswipe_global_counter';
+const [showSummary, setShowSummary] = useState(false);
 
 // Direction to value mapping
 const DIRECTION_VALUES = {
@@ -315,25 +317,28 @@ export default function SwipeDeck() {
   }
 
   // Completion state for current position
-  if (index >= positionPlayers.length) {
-    return (
-      <div style={styles.appContainer}>
-        <div style={styles.completionScreen}>
-          <h2 style={styles.completionTitle}>{POSITION_CONFIG[currentPosition]?.name} Complete! 🎉</h2>
-          <p style={styles.completionSubtitle}>You've evaluated all {positionPlayers.length} players in this position.</p>
-          
-          <div style={styles.completionActions}>
-            <button onClick={goBackToPositions} style={styles.primaryBtn}>
-              Choose Another Position
-            </button>
-            <button onClick={resetPosition} style={styles.secondaryBtn}>
-              Restart This Position
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (index >= positionPlayers.length && !showSummary) {
+  // Show summary instead of immediate completion
+  return (
+    <PositionSummary 
+      position={currentPosition}
+      onContinue={() => {
+        // Mark position as completed
+        const newCompleted = new Set(completedPositions);
+        newCompleted.add(currentPosition);
+        setCompletedPositions(newCompleted);
+        localStorage.setItem(COMPLETED_POSITIONS_KEY, JSON.stringify(Array.from(newCompleted)));
+        
+        // Go back to position selection
+        goBackToPositions();
+      }}
+      onRestart={() => {
+        resetPosition();
+        setShowSummary(false);
+      }}
+    />
+  );
+}
 
   const currentPlayer = positionPlayers[index];
   
