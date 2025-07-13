@@ -16,31 +16,31 @@ const POSITION_CONFIG = {
 
 const GM_TYPES = {
   'valueHunter': {
-    name: 'The Value Hunter',
+    name: 'Value Hunter',
     icon: '💎',
     description: 'You find diamonds in the rough',
     color: '#10B981'
   },
   'eliteChaser': {
-    name: 'The Elite Chaser', 
+    name: 'Elite Chaser', 
     icon: '👑',
     description: 'You target proven superstars',
     color: '#F59E0B'
   },
   'balancedBuilder': {
-    name: 'The Balanced Builder',
+    name: 'Balanced Builder',
     icon: '⚖️',
     description: 'You value consistency across the board',
     color: '#3B82F6'
   },
   'riskTaker': {
-    name: 'The Risk Taker',
+    name: 'Risk Taker',
     icon: '🎲',
     description: 'You swing for the fences',
     color: '#EF4444'
   },
   'contrarian': {
-    name: 'The Contrarian',
+    name: 'Contrarian',
     icon: '🔄',
     description: 'You zig when others zag',
     color: '#8B5CF6'
@@ -418,7 +418,7 @@ export default function PositionSummary({ position, onContinue, onRestart }) {
           <div style={styles.shareContent}>
             <div style={styles.shareIcon}>{personality.icon}</div>
             <div style={styles.shareText}>
-              I'm a {personality.name} in fantasy football!
+              I'm {personality.name} in SwipeScout!
               <br />
               {position 
                 ? `Evaluated ${analysis.totalRated} ${POSITION_CONFIG[position]?.name}`

@@ -1,24 +1,31 @@
 // src/utils/normalizePlayer.js
-export function normalizePlayer(row, index) {
+export function normalizePlayer(row, index = 0) {
+  /* ---------- 1. already-normalized objects (from buildPlayers) ---------- */
+  if (row.name && row.fantasyPts !== undefined) {
+    // tidy numeric strings that came through fetch()
+    return {
+      ...row,
+      fantasyPts : +row.fantasyPts,
+      auction    : +row.auction,
+      vorp       : +row.vorp,
+      rookie     : Boolean(row.rookie),
+    };
+  }
+
+  /* ---------- 2. legacy CSV rows (just in case) ------------------------- */
   return {
-    /* unique id for React & localStorage.
-       In a real app you’d use an NFL player-id; for now index is fine. */
-    id: index,
-
-    // rename the awkward column headers →
-    name: row["Player Name"],
-    team: row.Team,
+    id     : index,
+    name   : row["Player Name"],
+    team   : row.Team,
     position: row.Position,
-    rookie: row.Rookie === "Y",
+    rookie : row.Rookie === "Y",
 
-    // numbers arrive as strings → coerce with +
-    fantasyPts: +row.Fantasy_Pts,
-    auction: +row.Auction_Value,
-    vorp: +row.VORP,
+    fantasyPts : +row.Fantasy_Pts,
+    auction    : +row.Auction_Value,
+    vorp       : +row.VORP,
 
-    // you can add more when you need them
-    passYds: +row.Pass_Yd,
-    rushYds: +row.Rush_Yd,
-    recYds:  +row.Rec_Yd,
+    passYds : +row.Pass_Yd,
+    rushYds : +row.Rush_Yd,
+    recYds  : +row.Rec_Yd,
   };
 }
