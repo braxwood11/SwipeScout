@@ -1,6 +1,8 @@
 // src/components/PositionSummary.jsx
 import React, { useState, useEffect } from 'react';
 import { normalizePlayer } from '../utils/normalizePlayer';
+import { generateNarrativeInsights, prioritizeNarratives } from '../utils/narrativeGenerator';
+import { analyzePlayerSynergies } from '../utils/synergyAnalyzer';
 
 // Storage keys matching your SwipeDeck
 const STORAGE_KEY = 'draftswipe_prefs_v3_4direction';
@@ -16,42 +18,43 @@ const POSITION_CONFIG = {
 
 const GM_TYPES = {
   'valueHunter': {
-    name: 'Value Hunter',
+    name: 'The Value Hunter',
     icon: '💎',
     description: 'You find diamonds in the rough',
     color: '#10B981'
   },
   'eliteChaser': {
-    name: 'Elite Chaser', 
+    name: 'The Elite Chaser', 
     icon: '👑',
     description: 'You target proven superstars',
     color: '#F59E0B'
   },
   'balancedBuilder': {
-    name: 'Balanced Builder',
+    name: 'The Balanced Builder',
     icon: '⚖️',
     description: 'You value consistency across the board',
     color: '#3B82F6'
   },
   'riskTaker': {
-    name: 'Risk Taker',
+    name: 'The Risk Taker',
     icon: '🎲',
     description: 'You swing for the fences',
     color: '#EF4444'
   },
   'contrarian': {
-    name: 'Contrarian',
+    name: 'The Contrarian',
     icon: '🔄',
     description: 'You zig when others zag',
     color: '#8B5CF6'
   }
 };
 
-// Analyze user patterns
+// Enhanced analysis function
 const analyzeUserTendencies = (players, prefs, position = null) => {
   const ratings = { love: 0, like: 0, meh: 0, pass: 0 };
   const positionPrefs = { QB: [], RB: [], WR: [], TE: [] };
   const valueMetrics = { highValue: [], lowValue: [], loved: [] };
+  const elitePositionTargets = { QB: 0, RB: 0, WR: 0, TE: 0 };
   
   // Filter by position if specified
   const relevantPlayers = position 
@@ -76,6 +79,11 @@ const analyzeUserTendencies = (players, prefs, position = null) => {
         ...player,
         rating: pref
       });
+      
+      // Count elite targets (top 50 players loved/liked)
+      if (player.fantasyPts > 150) {
+        elitePositionTargets[player.position]++;
+      }
     }
     
     // Identify value picks (low auction value but user likes)
@@ -98,53 +106,36 @@ const analyzeUserTendencies = (players, prefs, position = null) => {
     pass: total > 0 ? (ratings.pass / total * 100).toFixed(1) : '0'
   };
   
-  // Determine GM type
+  // Determine GM type based on patterns
   let gmType = 'balancedBuilder';
+  
   if (valueMetrics.lowValue.length > valueMetrics.highValue.length * 2) {
     gmType = 'valueHunter';
-  } else if (valueMetrics.highValue.length > 10) {
+  } else if (valueMetrics.highValue.length >= 5) {
     gmType = 'eliteChaser';
-  } else if (parseFloat(distribution.love) > 15) {
-    gmType = 'riskTaker';
-  } else if (parseFloat(distribution.pass) > 60) {
+  } else if (ratings.love < total * 0.05) {
     gmType = 'contrarian';
+  } else if (valueMetrics.loved.filter(p => p.rookie).length >= 3) {
+    gmType = 'riskTaker';
   }
   
-  // Position preference analysis
-  const elitePositionTargets = {};
-  Object.entries(positionPrefs).forEach(([pos, players]) => {
-    const elitePlayers = players
-      .sort((a, b) => b.fantasyPts - a.fantasyPts)
-      .slice(0, 5)
-      .filter(p => p.rating === 2);
-    if (elitePlayers.length > 0) {
-      elitePositionTargets[pos] = elitePlayers.length;
-    }
-  });
-  
-  // Find sleepers (loved players with low projected points relative to position)
-  const sleepers = valueMetrics.loved
-    .filter(p => {
-      const posAvg = relevantPlayers
-        .filter(pl => pl.position === p.position)
-        .reduce((sum, pl) => sum + pl.fantasyPts, 0) / relevantPlayers.filter(pl => pl.position === p.position).length;
-      return p.fantasyPts < posAvg * 0.8;
-    })
-    .slice(0, 5);
+  // Find sleepers (loved players with low projections)
+  const avgFantasyPts = relevantPlayers.reduce((sum, p) => sum + p.fantasyPts, 0) / relevantPlayers.length;
+  const sleepers = valueMetrics.loved.filter(p => p.fantasyPts < avgFantasyPts * 0.8);
   
   return {
+    ratings,
     distribution,
     gmType,
     positionPrefs,
     valueMetrics,
     elitePositionTargets,
     sleepers,
-    totalRated: total,
-    ratings
+    totalEvaluated: total
   };
 };
 
-// Create tiers based on ratings
+// Create tier groupings
 const createTiers = (players, prefs, position = null) => {
   const relevantPlayers = position 
     ? players.filter(p => p.position === position)
@@ -169,11 +160,109 @@ const createTiers = (players, prefs, position = null) => {
   return { tiers, allRated: ratedPlayers };
 };
 
+// Component for displaying narrative insights
+const NarrativeCard = ({ narrative, isExpanded, onToggle }) => {
+  return (
+    <div 
+      style={{
+        ...styles.narrativeCard,
+        ...(narrative.priority === 'high' ? styles.highPriorityCard : {})
+      }}
+      onClick={onToggle}
+    >
+      <div style={styles.narrativeHeader}>
+        <span style={styles.narrativeIcon}>{narrative.icon}</span>
+        <h3 style={styles.narrativeTitle}>{narrative.title}</h3>
+        <span style={styles.expandIcon}>{isExpanded ? '−' : '+'}</span>
+      </div>
+      
+      <p style={styles.narrativeSummary}>{narrative.summary}</p>
+      
+      {isExpanded && (
+        <div style={styles.narrativeExpanded}>
+          <p style={styles.narrativeFullText}>{narrative.fullText}</p>
+          
+          {narrative.actionable && narrative.actionable.length > 0 && (
+            <div style={styles.actionableSection}>
+              <h4 style={styles.actionableTitle}>Action Items:</h4>
+              <ul style={styles.actionableList}>
+                {narrative.actionable.map((action, idx) => (
+                  <li key={idx} style={styles.actionableItem}>{action}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          
+          {narrative.relatedPlayers && narrative.relatedPlayers.length > 0 && (
+            <div style={styles.relatedPlayersSection}>
+              <h4 style={styles.relatedTitle}>Related Players:</h4>
+              <div style={styles.relatedPlayersGrid}>
+                {narrative.relatedPlayers.map(player => (
+                  <div key={player.id} style={styles.relatedPlayer}>
+                    <span style={styles.relatedPlayerName}>{player.name}</span>
+                    <span style={styles.relatedPlayerInfo}>
+                      {player.team} • {player.fantasyPts.toFixed(0)} pts
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Component for displaying synergies
+const SynergyCard = ({ synergy, type }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  const getIcon = () => {
+    switch(type) {
+      case 'stack': return '🔗';
+      case 'team': return '🏟️';
+      case 'handcuff': return '🔒';
+      case 'bye': return '📅';
+      default: return '✨';
+    }
+  };
+  
+  return (
+    <div style={styles.synergyCard} onClick={() => setIsExpanded(!isExpanded)}>
+      <div style={styles.synergyHeader}>
+        <span style={styles.synergyIcon}>{getIcon()}</span>
+        <h4 style={styles.synergyTitle}>{synergy.title || synergy.narrative}</h4>
+      </div>
+      
+      {isExpanded && (
+        <div style={styles.synergyDetails}>
+          {synergy.players && (
+            <div style={styles.synergyPlayers}>
+              {synergy.players.map(p => (
+                <span key={p.id} style={styles.synergyPlayer}>
+                  {p.name} ({p.position})
+                </span>
+              ))}
+            </div>
+          )}
+          {synergy.recommendation && (
+            <p style={styles.synergyRecommendation}>{synergy.recommendation}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function PositionSummary({ position, onContinue, onRestart }) {
   const [analysis, setAnalysis] = useState(null);
   const [tierData, setTierData] = useState(null);
+  const [narratives, setNarratives] = useState([]);
+  const [synergies, setSynergies] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [selectedView, setSelectedView] = useState('overview');
+  const [selectedView, setSelectedView] = useState('insights');
+  const [expandedNarratives, setExpandedNarratives] = useState(new Set());
   
   useEffect(() => {
     const loadAndAnalyze = async () => {
@@ -190,8 +279,20 @@ export default function PositionSummary({ position, onContinue, onRestart }) {
         const analysisResult = analyzeUserTendencies(players, prefs, position);
         const tiersResult = createTiers(players, prefs, position);
         
+        // Generate narratives
+        const narrativeResults = generateNarrativeInsights(analysisResult, prefs, players, position);
+        const prioritizedNarratives = prioritizeNarratives(narrativeResults, 6);
+        
+        // Analyze synergies (only for overall view)
+        let synergyResults = null;
+        if (!position) {
+          synergyResults = analyzePlayerSynergies(prefs, players);
+        }
+        
         setAnalysis(analysisResult);
         setTierData(tiersResult);
+        setNarratives(prioritizedNarratives);
+        setSynergies(synergyResults);
         setLoading(false);
       } catch (error) {
         console.error('Error loading data:', error);
@@ -201,6 +302,16 @@ export default function PositionSummary({ position, onContinue, onRestart }) {
     
     loadAndAnalyze();
   }, [position]);
+  
+  const toggleNarrative = (index) => {
+    const newExpanded = new Set(expandedNarratives);
+    if (newExpanded.has(index)) {
+      newExpanded.delete(index);
+    } else {
+      newExpanded.add(index);
+    }
+    setExpandedNarratives(newExpanded);
+  };
   
   if (loading) {
     return (
@@ -228,53 +339,51 @@ export default function PositionSummary({ position, onContinue, onRestart }) {
           {position ? `${POSITION_CONFIG[position]?.name} Analysis` : 'Overall Analysis'}
         </h1>
         
+        {/* GM Personality Card */}
+        <div style={{...styles.card, ...styles.personalityCard}}>
+          <div style={styles.personalityIcon}>{personality.icon}</div>
+          <h2 style={styles.personalityTitle}>{personality.name}</h2>
+          <p style={styles.personalityDesc}>{personality.description}</p>
+        </div>
+        
         {/* Tab Navigation */}
         <div style={styles.tabContainer}>
-          {['overview', 'tiers', 'insights'].map(view => (
+          {['insights', 'tiers', 'synergies'].map(view => (
             <button
               key={view}
               style={{
                 ...styles.tab,
-                ...(selectedView === view ? styles.activeTab : {})
+                ...(selectedView === view ? styles.activeTab : {}),
+                ...(view === 'synergies' && position ? styles.disabledTab : {})
               }}
-              onClick={() => setSelectedView(view)}
+              onClick={() => {
+                if (!(view === 'synergies' && position)) {
+                  setSelectedView(view);
+                }
+              }}
+              disabled={view === 'synergies' && position}
             >
               {view.charAt(0).toUpperCase() + view.slice(1)}
             </button>
           ))}
         </div>
         
-        {/* Overview Tab */}
-        {selectedView === 'overview' && (
+        {/* Insights Tab - Now with Narratives */}
+        {selectedView === 'insights' && (
           <div style={styles.viewContainer}>
-            {/* GM Personality Card */}
-            <div style={{...styles.card, ...styles.personalityCard}}>
-              <div style={styles.personalityIcon}>{personality.icon}</div>
-              <h2 style={styles.personalityTitle}>{personality.name}</h2>
-              <p style={styles.personalityDesc}>{personality.description}</p>
+            {/* Narrative Cards */}
+            <div style={styles.narrativesSection}>
+              {narratives.map((narrative, idx) => (
+                <NarrativeCard
+                  key={idx}
+                  narrative={narrative}
+                  isExpanded={expandedNarratives.has(idx)}
+                  onToggle={() => toggleNarrative(idx)}
+                />
+              ))}
             </div>
             
-            {/* Rating Distribution */}
-            <div style={styles.card}>
-              <h3 style={styles.cardTitle}>Your Rating Breakdown</h3>
-              <div style={styles.ratingGrid}>
-                {[
-                  { label: 'Love', value: analysis.ratings.love, emoji: '❤️', color: '#EC4899' },
-                  { label: 'Like', value: analysis.ratings.like, emoji: '👍', color: '#22C55E' },
-                  { label: 'Meh', value: analysis.ratings.meh, emoji: '😐', color: '#F59E0B' },
-                  { label: 'Pass', value: analysis.ratings.pass, emoji: '👎', color: '#EF4444' }
-                ].map(item => (
-                  <div key={item.label} style={styles.ratingItem}>
-                    <div style={styles.ratingEmoji}>{item.emoji}</div>
-                    <div style={styles.ratingValue}>{item.value}</div>
-                    <div style={styles.ratingLabel}>{item.label}</div>
-                    <div style={{...styles.ratingBar, backgroundColor: item.color}} />
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            {/* Quick Stats */}
+            {/* Quick Stats Grid */}
             <div style={styles.statsGrid}>
               <div style={styles.statCard}>
                 <div style={styles.statValue}>{analysis.distribution.love}%</div>
@@ -285,8 +394,8 @@ export default function PositionSummary({ position, onContinue, onRestart }) {
                 <div style={styles.statLabel}>Must Haves</div>
               </div>
               <div style={styles.statCard}>
-                <div style={styles.statValue}>{analysis.valueMetrics.lowValue.length}</div>
-                <div style={styles.statLabel}>Value Picks</div>
+                <div style={styles.statValue}>{analysis.sleepers.length}</div>
+                <div style={styles.statLabel}>Sleepers</div>
               </div>
             </div>
           </div>
@@ -296,107 +405,105 @@ export default function PositionSummary({ position, onContinue, onRestart }) {
         {selectedView === 'tiers' && (
           <div style={styles.viewContainer}>
             {/* Love Tier */}
-            <div style={{...styles.card, borderLeft: '4px solid #EC4899'}}>
-              <h3 style={styles.tierTitle}>❤️ Love Tier ({tierData.tiers.love.length})</h3>
-              <div style={styles.playerList}>
-                {tierData.tiers.love.slice(0, 10).map(player => (
-                  <div key={player.id} style={styles.playerRow}>
-                    <div style={styles.playerInfo}>
-                      <span style={styles.playerName}>{player.name}</span>
-                      <span style={styles.playerMeta}>
-                        {player.team} • {player.fantasyPts.toFixed(1)} pts
-                      </span>
-                    </div>
-                    <div style={styles.playerValue}>${player.auction}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            {/* Like Tier */}
-            <div style={{...styles.card, borderLeft: '4px solid #22C55E'}}>
-              <h3 style={styles.tierTitle}>👍 Like Tier ({tierData.tiers.like.length})</h3>
-              <div style={styles.playerList}>
-                {tierData.tiers.like.slice(0, 8).map(player => (
-                  <div key={player.id} style={styles.playerRow}>
-                    <div style={styles.playerInfo}>
-                      <span style={styles.playerName}>{player.name}</span>
-                      <span style={styles.playerMeta}>
-                        {player.team} • {player.fantasyPts.toFixed(1)} pts
-                      </span>
-                    </div>
-                    <div style={styles.playerValue}>${player.auction}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* Insights Tab */}
-        {selectedView === 'insights' && (
-          <div style={styles.viewContainer}>
-            {/* Value Picks */}
-            {analysis.valueMetrics.lowValue.length > 0 && (
-              <div style={styles.card}>
-                <h3 style={styles.cardTitle}>💎 Your Value Targets</h3>
-                <p style={styles.insightText}>
-                  Players you like that others might overlook:
-                </p>
-                <div style={styles.valueGrid}>
-                  {analysis.valueMetrics.lowValue.slice(0, 6).map(player => (
-                    <div key={player.id} style={styles.valueCard}>
-                      <div style={styles.valueName}>{player.name}</div>
-                      <div style={styles.valueMeta}>
-                        ${player.auction} • {player.fantasyPts.toFixed(0)} pts
+            {tierData.tiers.love.length > 0 && (
+              <div style={{...styles.card, borderLeft: '4px solid #EC4899'}}>
+                <h3 style={styles.tierTitle}>❤️ Love Tier ({tierData.tiers.love.length})</h3>
+                <div style={styles.playerList}>
+                  {tierData.tiers.love.slice(0, 10).map(player => (
+                    <div key={player.id} style={styles.playerRow}>
+                      <div style={styles.playerInfo}>
+                        <span style={styles.playerName}>{player.name}</span>
+                        <span style={styles.playerMeta}>
+                          {player.team} • {player.fantasyPts.toFixed(1)} pts • ${player.auction}
+                        </span>
                       </div>
+                      {player.rookie && <span style={styles.rookieBadge}>R</span>}
                     </div>
                   ))}
                 </div>
               </div>
             )}
             
-            {/* Draft Strategy */}
-            <div style={styles.card}>
-              <h3 style={styles.cardTitle}>📋 Your Draft Tendencies</h3>
-              <div style={styles.tendencyList}>
-                {analysis.elitePositionTargets.RB >= 3 && (
-                  <div style={styles.tendency}>
-                    • You favor elite running backs early
-                  </div>
-                )}
-                {analysis.elitePositionTargets.WR >= 3 && (
-                  <div style={styles.tendency}>
-                    • You're building around elite receivers
-                  </div>
-                )}
-                {analysis.valueMetrics.lowValue.length > 10 && (
-                  <div style={styles.tendency}>
-                    • You excel at finding late-round value
-                  </div>
-                )}
-                {parseFloat(analysis.distribution.love) < 10 && (
-                  <div style={styles.tendency}>
-                    • You're highly selective with your targets
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            {/* Sleepers */}
-            {analysis.sleepers.length > 0 && (
-              <div style={styles.card}>
-                <h3 style={styles.cardTitle}>🎯 Your Sleeper Picks</h3>
-                <p style={styles.insightText}>
-                  Lower-projected players you believe in:
-                </p>
-                <div style={styles.sleeperList}>
-                  {analysis.sleepers.map(player => (
-                    <div key={player.id} style={styles.sleeperItem}>
-                      {player.name} ({player.position})
+            {/* Like Tier */}
+            {tierData.tiers.like.length > 0 && (
+              <div style={{...styles.card, borderLeft: '4px solid #22C55E'}}>
+                <h3 style={styles.tierTitle}>👍 Like Tier ({tierData.tiers.like.length})</h3>
+                <div style={styles.playerList}>
+                  {tierData.tiers.like.slice(0, 8).map(player => (
+                    <div key={player.id} style={styles.playerRow}>
+                      <div style={styles.playerInfo}>
+                        <span style={styles.playerName}>{player.name}</span>
+                        <span style={styles.playerMeta}>
+                          {player.team} • {player.fantasyPts.toFixed(1)} pts • ${player.auction}
+                        </span>
+                      </div>
+                      {player.rookie && <span style={styles.rookieBadge}>R</span>}
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+            
+            {/* Pass Tier (Avoid List) */}
+            {tierData.tiers.pass.length > 0 && tierData.tiers.pass.some(p => p.fantasyPts > 150) && (
+              <div style={{...styles.card, borderLeft: '4px solid #EF4444'}}>
+                <h3 style={styles.tierTitle}>🚫 Avoid List</h3>
+                <p style={styles.avoidDescription}>
+                  High-ranked players you're fading:
+                </p>
+                <div style={styles.avoidGrid}>
+                  {tierData.tiers.pass
+                    .filter(p => p.fantasyPts > 150)
+                    .slice(0, 6)
+                    .map(player => (
+                      <div key={player.id} style={styles.avoidPlayer}>
+                        {player.name} ({player.team})
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Synergies Tab (Overall only) */}
+        {selectedView === 'synergies' && !position && synergies && (
+          <div style={styles.viewContainer}>
+            {/* QB Stacks */}
+            {synergies.stacks.length > 0 && (
+              <div style={styles.card}>
+                <h3 style={styles.synergyTypeTitle}>🔗 QB Stack Opportunities</h3>
+                {synergies.stacks.slice(0, 3).map((stack, idx) => (
+                  <SynergyCard key={idx} synergy={stack} type="stack" />
+                ))}
+              </div>
+            )}
+            
+            {/* Team Concentrations */}
+            {synergies.teamStacks.length > 0 && (
+              <div style={styles.card}>
+                <h3 style={styles.synergyTypeTitle}>🏟️ Team Concentrations</h3>
+                {synergies.teamStacks.slice(0, 3).map((stack, idx) => (
+                  <SynergyCard key={idx} synergy={stack} type="team" />
+                ))}
+              </div>
+            )}
+            
+            {/* Handcuff Analysis */}
+            {synergies.handcuffs.length > 0 && (
+              <div style={styles.card}>
+                <h3 style={styles.synergyTypeTitle}>🔒 Handcuff Strategy</h3>
+                {synergies.handcuffs.slice(0, 4).map((handcuff, idx) => (
+                  <SynergyCard key={idx} synergy={handcuff} type="handcuff" />
+                ))}
+              </div>
+            )}
+            
+            {/* Bye Week Analysis */}
+            {synergies.byeWeekClusters.risk !== 'low' && (
+              <div style={styles.card}>
+                <h3 style={styles.synergyTypeTitle}>📅 Bye Week Analysis</h3>
+                <SynergyCard synergy={synergies.byeWeekClusters} type="bye" />
               </div>
             )}
           </div>
@@ -405,33 +512,10 @@ export default function PositionSummary({ position, onContinue, onRestart }) {
         {/* Action Buttons */}
         <div style={styles.actions}>
           <button onClick={onContinue} style={styles.primaryButton}>
-            View other positions
+            {position ? 'View Other Positions' : 'View Draft Plan'}
           </button>
           <button onClick={onRestart} style={styles.secondaryButton}>
-            Restart This Position
-          </button>
-        </div>
-        
-        {/* Shareable Summary */}
-        <div style={{...styles.card, ...styles.shareCard}}>
-          <h3 style={styles.shareTitle}>Share Your Results!</h3>
-          <div style={styles.shareContent}>
-            <div style={styles.shareIcon}>{personality.icon}</div>
-            <div style={styles.shareText}>
-              I'm {personality.name} in SwipeScout!
-              <br />
-              {position 
-                ? `Evaluated ${analysis.totalRated} ${POSITION_CONFIG[position]?.name}`
-                : `Evaluated ${analysis.totalRated} players`}
-            </div>
-            <div style={styles.shareStats}>
-              <span>❤️ {analysis.ratings.love}</span>
-              <span>👍 {analysis.ratings.like}</span>
-              <span>💎 {analysis.valueMetrics.lowValue.length} values</span>
-            </div>
-          </div>
-          <button style={styles.shareButton}>
-            📱 Share to Social
+            {position ? 'Restart This Position' : 'Start Over'}
           </button>
         </div>
       </div>
@@ -439,72 +523,46 @@ export default function PositionSummary({ position, onContinue, onRestart }) {
   );
 }
 
-// Styles
+// Enhanced styles
 const styles = {
   container: {
     minHeight: '100vh',
     background: 'linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%)',
-    padding: '1rem',
+    padding: '2rem 1rem',
     color: 'white'
   },
   
   content: {
-    maxWidth: '800px',
+    maxWidth: '1000px',
     margin: '0 auto'
   },
   
   loadingText: {
     textAlign: 'center',
     fontSize: '1.5rem',
-    marginTop: '10rem'
+    color: '#d1d5db',
+    paddingTop: '4rem'
   },
   
   errorText: {
     textAlign: 'center',
-    fontSize: '1.2rem',
-    marginTop: '10rem',
-    color: '#ef4444'
+    fontSize: '1.5rem',
+    color: '#ef4444',
+    paddingTop: '4rem'
   },
   
   title: {
-    fontSize: '2rem',
+    fontSize: '2.5rem',
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: '2rem'
-  },
-  
-  tabContainer: {
-    display: 'flex',
-    gap: '0.5rem',
-    marginBottom: '2rem',
-    justifyContent: 'center'
-  },
-  
-  tab: {
-    padding: '0.75rem 1.5rem',
-    background: 'rgba(255, 255, 255, 0.1)',
-    border: 'none',
-    borderRadius: '0.5rem',
-    color: 'white',
-    cursor: 'pointer',
-    transition: 'all 0.2s'
-  },
-  
-  activeTab: {
-    background: 'white',
-    color: '#0f0f23'
-  },
-  
-  viewContainer: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1.5rem'
   },
   
   card: {
     background: 'rgba(255, 255, 255, 0.05)',
     borderRadius: '1rem',
     padding: '1.5rem',
+    marginBottom: '1.5rem',
     backdropFilter: 'blur(10px)',
     border: '1px solid rgba(255, 255, 255, 0.1)'
   },
@@ -530,45 +588,220 @@ const styles = {
     fontSize: '1.1rem'
   },
   
-  cardTitle: {
+  tabContainer: {
+    display: 'flex',
+    gap: '1rem',
+    marginBottom: '2rem',
+    justifyContent: 'center'
+  },
+  
+  tab: {
+    padding: '0.75rem 2rem',
+    background: 'rgba(255, 255, 255, 0.1)',
+    border: 'none',
+    borderRadius: '0.5rem',
+    color: 'white',
+    fontSize: '1rem',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease'
+  },
+  
+  activeTab: {
+    background: 'rgba(255, 255, 255, 0.2)',
+    transform: 'translateY(-2px)'
+  },
+  
+  disabledTab: {
+    opacity: 0.5,
+    cursor: 'not-allowed'
+  },
+  
+  viewContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem'
+  },
+  
+  // Narrative styles
+  narrativesSection: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1rem'
+  },
+  
+  narrativeCard: {
+    background: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: '0.75rem',
+    padding: '1.25rem',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    border: '1px solid rgba(255, 255, 255, 0.1)'
+  },
+  
+  highPriorityCard: {
+    borderColor: 'rgba(236, 72, 153, 0.3)',
+    background: 'rgba(236, 72, 153, 0.05)'
+  },
+  
+  narrativeHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    marginBottom: '0.5rem'
+  },
+  
+  narrativeIcon: {
+    fontSize: '1.5rem'
+  },
+  
+  narrativeTitle: {
+    fontSize: '1.25rem',
+    fontWeight: 'bold',
+    flex: 1,
+    margin: 0
+  },
+  
+  expandIcon: {
+    fontSize: '1.25rem',
+    color: '#9ca3af'
+  },
+  
+  narrativeSummary: {
+    color: '#d1d5db',
+    marginBottom: '0.5rem'
+  },
+  
+  narrativeExpanded: {
+    marginTop: '1rem',
+    paddingTop: '1rem',
+    borderTop: '1px solid rgba(255, 255, 255, 0.1)'
+  },
+  
+  narrativeFullText: {
+    color: '#e5e7eb',
+    lineHeight: '1.6',
+    marginBottom: '1rem'
+  },
+  
+  actionableSection: {
+    background: 'rgba(59, 130, 246, 0.1)',
+    borderRadius: '0.5rem',
+    padding: '1rem',
+    marginTop: '1rem'
+  },
+  
+  actionableTitle: {
+    fontSize: '1rem',
+    fontWeight: 'bold',
+    marginBottom: '0.5rem',
+    color: '#60a5fa'
+  },
+  
+  actionableList: {
+    listStyle: 'none',
+    padding: 0,
+    margin: 0
+  },
+  
+  actionableItem: {
+    padding: '0.25rem 0',
+    paddingLeft: '1.5rem',
+    position: 'relative',
+    color: '#e5e7eb'
+  },
+  
+  relatedPlayersSection: {
+    marginTop: '1rem'
+  },
+  
+  relatedTitle: {
+    fontSize: '1rem',
+    fontWeight: 'bold',
+    marginBottom: '0.5rem'
+  },
+  
+  relatedPlayersGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+    gap: '0.5rem'
+  },
+  
+  relatedPlayer: {
+    background: 'rgba(255, 255, 255, 0.05)',
+    padding: '0.5rem',
+    borderRadius: '0.25rem',
+    fontSize: '0.875rem'
+  },
+  
+  relatedPlayerName: {
+    fontWeight: 'bold',
+    display: 'block'
+  },
+  
+  relatedPlayerInfo: {
+    color: '#9ca3af',
+    fontSize: '0.75rem'
+  },
+  
+  // Synergy styles
+  synergyTypeTitle: {
     fontSize: '1.25rem',
     fontWeight: 'bold',
     marginBottom: '1rem'
   },
   
-  ratingGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(4, 1fr)',
-    gap: '1rem'
+  synergyCard: {
+    background: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: '0.5rem',
+    padding: '1rem',
+    marginBottom: '0.75rem',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease'
   },
   
-  ratingItem: {
-    textAlign: 'center',
-    position: 'relative'
+  synergyHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem'
   },
   
-  ratingEmoji: {
-    fontSize: '2rem',
+  synergyIcon: {
+    fontSize: '1.25rem'
+  },
+  
+  synergyTitle: {
+    fontSize: '1rem',
+    fontWeight: '500',
+    margin: 0
+  },
+  
+  synergyDetails: {
+    marginTop: '0.75rem',
+    paddingTop: '0.75rem',
+    borderTop: '1px solid rgba(255, 255, 255, 0.05)'
+  },
+  
+  synergyPlayers: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.5rem',
     marginBottom: '0.5rem'
   },
   
-  ratingValue: {
-    fontSize: '1.5rem',
-    fontWeight: 'bold'
+  synergyPlayer: {
+    background: 'rgba(255, 255, 255, 0.1)',
+    padding: '0.25rem 0.5rem',
+    borderRadius: '0.25rem',
+    fontSize: '0.875rem'
   },
   
-  ratingLabel: {
+  synergyRecommendation: {
+    color: '#e5e7eb',
     fontSize: '0.875rem',
-    color: '#9ca3af',
-    marginBottom: '0.5rem'
+    fontStyle: 'italic'
   },
   
-  ratingBar: {
-    height: '4px',
-    borderRadius: '2px',
-    width: '100%'
-  },
-  
+  // Stats grid styles
   statsGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(3, 1fr)',
@@ -585,16 +818,17 @@ const styles = {
   statValue: {
     fontSize: '1.75rem',
     fontWeight: 'bold',
-    color: '#3b82f6'
+    marginBottom: '0.25rem'
   },
   
   statLabel: {
-    fontSize: '0.875rem',
-    color: '#9ca3af'
+    color: '#9ca3af',
+    fontSize: '0.875rem'
   },
   
+  // Tier styles
   tierTitle: {
-    fontSize: '1.125rem',
+    fontSize: '1.25rem',
     fontWeight: 'bold',
     marginBottom: '1rem'
   },
@@ -609,156 +843,80 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '0.75rem',
-    background: 'rgba(0, 0, 0, 0.2)',
-    borderRadius: '0.5rem'
+    padding: '0.5rem',
+    background: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: '0.25rem'
   },
   
   playerInfo: {
-    display: 'flex',
-    flexDirection: 'column'
+    flex: 1
   },
   
   playerName: {
-    fontWeight: '600'
+    fontWeight: 'bold',
+    display: 'block'
   },
   
   playerMeta: {
-    fontSize: '0.875rem',
-    color: '#9ca3af'
+    color: '#9ca3af',
+    fontSize: '0.875rem'
   },
   
-  playerValue: {
-    fontWeight: 'bold',
-    color: '#10b981'
+  rookieBadge: {
+    background: '#f59e0b',
+    color: 'black',
+    padding: '0.125rem 0.375rem',
+    borderRadius: '0.25rem',
+    fontSize: '0.75rem',
+    fontWeight: 'bold'
   },
   
-  insightText: {
+  avoidDescription: {
     color: '#d1d5db',
     marginBottom: '1rem'
   },
   
-  valueGrid: {
+  avoidGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(2, 1fr)',
-    gap: '0.75rem'
-  },
-  
-  valueCard: {
-    background: 'rgba(16, 185, 129, 0.1)',
-    border: '1px solid rgba(16, 185, 129, 0.3)',
-    borderRadius: '0.5rem',
-    padding: '0.75rem'
-  },
-  
-  valueName: {
-    fontWeight: '600',
-    fontSize: '0.875rem'
-  },
-  
-  valueMeta: {
-    fontSize: '0.75rem',
-    color: '#10b981'
-  },
-  
-  tendencyList: {
-    display: 'flex',
-    flexDirection: 'column',
     gap: '0.5rem'
   },
   
-  tendency: {
-    color: '#d1d5db',
-    fontSize: '1rem'
-  },
-  
-  sleeperList: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '0.5rem'
-  },
-  
-  sleeperItem: {
-    background: 'rgba(139, 92, 246, 0.2)',
-    border: '1px solid rgba(139, 92, 246, 0.4)',
-    borderRadius: '2rem',
-    padding: '0.5rem 1rem',
+  avoidPlayer: {
+    background: 'rgba(239, 68, 68, 0.1)',
+    padding: '0.5rem',
+    borderRadius: '0.25rem',
     fontSize: '0.875rem'
   },
   
+  // Action buttons
   actions: {
     display: 'flex',
     gap: '1rem',
-    marginTop: '2rem',
-    marginBottom: '2rem'
+    justifyContent: 'center',
+    marginTop: '2rem'
   },
   
   primaryButton: {
-    flex: 1,
-    padding: '1rem',
-    background: 'linear-gradient(135deg, #3B82F6 0%, #1d4ed8 100%)',
-    border: 'none',
-    borderRadius: '0.75rem',
+    background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
     color: 'white',
-    fontWeight: 'bold',
+    border: 'none',
+    padding: '0.75rem 2rem',
+    borderRadius: '0.5rem',
     fontSize: '1rem',
-    cursor: 'pointer'
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    transition: 'transform 0.2s ease'
   },
   
   secondaryButton: {
-    flex: 1,
-    padding: '1rem',
     background: 'rgba(255, 255, 255, 0.1)',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    borderRadius: '0.75rem',
     color: 'white',
-    fontWeight: 'bold',
-    fontSize: '1rem',
-    cursor: 'pointer'
-  },
-  
-  shareCard: {
-    background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%)',
-    textAlign: 'center'
-  },
-  
-  shareTitle: {
-    fontSize: '1.25rem',
-    fontWeight: 'bold',
-    marginBottom: '1rem'
-  },
-  
-  shareContent: {
-    background: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: '0.75rem',
-    padding: '1.5rem',
-    marginBottom: '1rem'
-  },
-  
-  shareIcon: {
-    fontSize: '3rem',
-    marginBottom: '0.5rem'
-  },
-  
-  shareText: {
-    fontSize: '1rem',
-    marginBottom: '1rem'
-  },
-  
-  shareStats: {
-    display: 'flex',
-    justifyContent: 'center',
-    gap: '1rem',
-    fontSize: '0.875rem'
-  },
-  
-  shareButton: {
+    border: '1px solid rgba(255, 255, 255, 0.2)',
     padding: '0.75rem 2rem',
-    background: 'white',
-    color: '#0f0f23',
-    border: 'none',
     borderRadius: '0.5rem',
-    fontWeight: 'bold',
-    cursor: 'pointer'
+    fontSize: '1rem',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease'
   }
 };
