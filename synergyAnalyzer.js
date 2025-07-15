@@ -138,7 +138,7 @@ const findHandcuffs = (prefs, players) => {
           backup,
           team,
           starterRating: prefs[starter.id] || 0,
-          backupRating: prefs[backup.id] || 0,
+          backupRating: prefs[backup.id],
           type: 'handcuff'
         };
         
@@ -149,9 +149,9 @@ const findHandcuffs = (prefs, players) => {
         } else if (prefs[backup.id] === -1) {
           handcuff.strategy = 'risky';
           handcuff.narrative = `You love ${starter.name} but passed on handcuff ${backup.name} - living dangerously`;
-        } else {
+        } else if (prefs[backup.id] === undefined) {
           handcuff.strategy = 'unaware';
-          handcuff.narrative = `Consider ${backup.name} as a handcuff for ${starter.name}`;
+          handcuff.narrative = `Consider evaluating ${backup.name} as a handcuff for ${starter.name}`;
         }
         
         handcuffs.push(handcuff);

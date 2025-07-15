@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { normalizePlayer } from '../utils/normalizePlayer';
 import { generateNarrativeInsights, prioritizeNarratives } from '../utils/narrativeGenerator';
 import { analyzePlayerSynergies } from '../utils/synergyAnalyzer';
+import { getPositionGMType } from '../utils/positionGMTypes';
 
 // Storage keys matching your SwipeDeck
 const STORAGE_KEY = 'draftswipe_prefs_v3_4direction';
@@ -16,7 +17,8 @@ const POSITION_CONFIG = {
   'TE': { icon: '🎪', name: 'Tight Ends', color: '#8B5CF6' }
 };
 
-const GM_TYPES = {
+// Overall GM types (used when position is null)
+const OVERALL_GM_TYPES = {
   'valueHunter': {
     name: 'The Value Hunter',
     icon: '💎',
@@ -108,15 +110,28 @@ const analyzeUserTendencies = (players, prefs, position = null) => {
   
   // Determine GM type based on patterns
   let gmType = 'balancedBuilder';
+  let gmTypeDetails = null;
   
-  if (valueMetrics.lowValue.length > valueMetrics.highValue.length * 2) {
-    gmType = 'valueHunter';
-  } else if (valueMetrics.highValue.length >= 5) {
-    gmType = 'eliteChaser';
-  } else if (ratings.love < total * 0.05) {
-    gmType = 'contrarian';
-  } else if (valueMetrics.loved.filter(p => p.rookie).length >= 3) {
-    gmType = 'riskTaker';
+  if (position) {
+    // Use position-specific GM types
+    gmTypeDetails = getPositionGMType(
+        position,
+        { gmType, distribution, ratings },
+        relevantPlayers,
+        prefs
+    );
+    gmType = gmTypeDetails.key;
+  } else {
+    // For overall view, use traditional GM type logic
+    if (valueMetrics.lowValue.length > valueMetrics.highValue.length * 2) {
+      gmType = 'valueHunter';
+    } else if (valueMetrics.highValue.length >= 5) {
+      gmType = 'eliteChaser';
+    } else if (ratings.love < total * 0.05 && total > 20) {
+      gmType = 'contrarian';
+    } else if (valueMetrics.loved.filter(p => p.rookie).length >= 3) {
+      gmType = 'riskTaker';
+    }
   }
   
   // Find sleepers (loved players with low projections)
@@ -127,6 +142,7 @@ const analyzeUserTendencies = (players, prefs, position = null) => {
     ratings,
     distribution,
     gmType,
+    gmTypeDetails, // Include full GM type details
     positionPrefs,
     valueMetrics,
     elitePositionTargets,
@@ -255,6 +271,42 @@ const SynergyCard = ({ synergy, type }) => {
   );
 };
 
+// Component for displaying player tiers with expand/collapse
+const TierCard = ({ title, players, borderColor, showAll = false, initialShow = 10 }) => {
+  const [isExpanded, setIsExpanded] = useState(showAll);
+  const displayPlayers = isExpanded ? players : players.slice(0, initialShow);
+  const hasMore = players.length > initialShow;
+  
+  return (
+    <div style={{...styles.card, borderLeft: `4px solid ${borderColor}`}}>
+      <div style={styles.tierHeader}>
+        <h3 style={styles.tierTitle}>{title} ({players.length})</h3>
+        {hasMore && !showAll && (
+          <button 
+            style={styles.expandButton}
+            onClick={() => setIsExpanded(!isExpanded)}
+          >
+            {isExpanded ? 'Show Less' : `Show All ${players.length}`}
+          </button>
+        )}
+      </div>
+      <div style={styles.playerList}>
+        {displayPlayers.map(player => (
+          <div key={player.id} style={styles.playerRow}>
+            <div style={styles.playerInfo}>
+              <span style={styles.playerName}>{player.name}</span>
+              <span style={styles.playerMeta}>
+                {player.team} • {player.fantasyPts.toFixed(1)} pts • ${player.auction}
+              </span>
+            </div>
+            {player.rookie && <span style={styles.rookieBadge}>R</span>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 export default function PositionSummary({ position, onContinue, onRestart }) {
   const [analysis, setAnalysis] = useState(null);
   const [tierData, setTierData] = useState(null);
@@ -329,7 +381,14 @@ export default function PositionSummary({ position, onContinue, onRestart }) {
     );
   }
   
-  const personality = GM_TYPES[analysis.gmType];
+  const personality = position 
+    ? (analysis.gmTypeDetails || { 
+        name: 'The Balanced Builder', 
+        icon: '⚖️', 
+        description: `You maintain flexibility at ${position}`,
+        color: '#3B82F6'
+      })
+    : OVERALL_GM_TYPES[analysis.gmType];
   
   return (
     <div style={styles.container}>
@@ -340,10 +399,15 @@ export default function PositionSummary({ position, onContinue, onRestart }) {
         </h1>
         
         {/* GM Personality Card */}
-        <div style={{...styles.card, ...styles.personalityCard}}>
+        <div style={{...styles.card, ...styles.personalityCard, borderColor: personality.color}}>
           <div style={styles.personalityIcon}>{personality.icon}</div>
           <h2 style={styles.personalityTitle}>{personality.name}</h2>
           <p style={styles.personalityDesc}>{personality.description}</p>
+          {position && (
+            <p style={styles.personalityPosition}>
+              Your {POSITION_CONFIG[position].name} Personality
+            </p>
+          )}
         </div>
         
         {/* Tab Navigation */}
@@ -406,63 +470,74 @@ export default function PositionSummary({ position, onContinue, onRestart }) {
           <div style={styles.viewContainer}>
             {/* Love Tier */}
             {tierData.tiers.love.length > 0 && (
-              <div style={{...styles.card, borderLeft: '4px solid #EC4899'}}>
-                <h3 style={styles.tierTitle}>❤️ Love Tier ({tierData.tiers.love.length})</h3>
-                <div style={styles.playerList}>
-                  {tierData.tiers.love.slice(0, 10).map(player => (
-                    <div key={player.id} style={styles.playerRow}>
-                      <div style={styles.playerInfo}>
-                        <span style={styles.playerName}>{player.name}</span>
-                        <span style={styles.playerMeta}>
-                          {player.team} • {player.fantasyPts.toFixed(1)} pts • ${player.auction}
-                        </span>
-                      </div>
-                      {player.rookie && <span style={styles.rookieBadge}>R</span>}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <TierCard 
+                title="❤️ Love Tier"
+                players={tierData.tiers.love}
+                borderColor="#EC4899"
+                showAll={true}
+              />
             )}
             
             {/* Like Tier */}
             {tierData.tiers.like.length > 0 && (
-              <div style={{...styles.card, borderLeft: '4px solid #22C55E'}}>
-                <h3 style={styles.tierTitle}>👍 Like Tier ({tierData.tiers.like.length})</h3>
-                <div style={styles.playerList}>
-                  {tierData.tiers.like.slice(0, 8).map(player => (
-                    <div key={player.id} style={styles.playerRow}>
-                      <div style={styles.playerInfo}>
-                        <span style={styles.playerName}>{player.name}</span>
-                        <span style={styles.playerMeta}>
-                          {player.team} • {player.fantasyPts.toFixed(1)} pts • ${player.auction}
-                        </span>
-                      </div>
-                      {player.rookie && <span style={styles.rookieBadge}>R</span>}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <TierCard 
+                title="👍 Like Tier"
+                players={tierData.tiers.like}
+                borderColor="#22C55E"
+                showAll={false}
+                initialShow={12}
+              />
             )}
             
-            {/* Pass Tier (Avoid List) */}
-            {tierData.tiers.pass.length > 0 && tierData.tiers.pass.some(p => p.fantasyPts > 150) && (
-              <div style={{...styles.card, borderLeft: '4px solid #EF4444'}}>
-                <h3 style={styles.tierTitle}>🚫 Avoid List</h3>
-                <p style={styles.avoidDescription}>
-                  High-ranked players you're fading:
-                </p>
-                <div style={styles.avoidGrid}>
-                  {tierData.tiers.pass
-                    .filter(p => p.fantasyPts > 150)
-                    .slice(0, 6)
-                    .map(player => (
-                      <div key={player.id} style={styles.avoidPlayer}>
-                        {player.name} ({player.team})
-                      </div>
-                    ))}
-                </div>
-              </div>
+            {/* Neutral/Meh Tier - only show if it has players */}
+            {tierData.tiers.neutral.length > 0 && (
+              <TierCard 
+                title="😐 Meh Tier"
+                players={tierData.tiers.neutral}
+                borderColor="#F59E0B"
+                showAll={false}
+                initialShow={8}
+              />
             )}
+            
+            {/* Pass Tier (Avoid List) - only show notable fades */}
+            {(() => {
+              // Get position-specific "notable" threshold
+              const notableThreshold = position ? {
+                'QB': 200,  // Top 20-25 QBs
+                'RB': 150,  // Top 40-50 RBs
+                'WR': 140,  // Top 50-60 WRs
+                'TE': 100   // Top 20 TEs
+              }[position] : 150;
+              
+              const notableFades = tierData.tiers.pass.filter(p => p.fantasyPts > notableThreshold);
+              
+              if (notableFades.length > 0) {
+                return (
+                  <div style={{...styles.card, borderLeft: '4px solid #EF4444'}}>
+                    <h3 style={styles.tierTitle}>🚫 Notable Fades</h3>
+                    <p style={styles.avoidDescription}>
+                      High-projected {position || 'players'} you're avoiding:
+                    </p>
+                    <div style={styles.avoidGrid}>
+                      {notableFades
+                        .slice(0, 12)
+                        .map(player => (
+                          <div key={player.id} style={styles.avoidPlayer}>
+                            {player.name} ({player.team})
+                          </div>
+                        ))}
+                    </div>
+                    {notableFades.length > 12 && (
+                      <p style={styles.moreText}>
+                        ...and {notableFades.length - 12} more
+                      </p>
+                    )}
+                  </div>
+                );
+              }
+              return null;
+            })()}
           </div>
         )}
         
@@ -569,7 +644,9 @@ const styles = {
   
   personalityCard: {
     textAlign: 'center',
-    background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%)'
+    background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%)',
+    borderWidth: '2px',
+    borderStyle: 'solid'
   },
   
   personalityIcon: {
@@ -586,6 +663,13 @@ const styles = {
   personalityDesc: {
     color: '#d1d5db',
     fontSize: '1.1rem'
+  },
+  
+  personalityPosition: {
+    marginTop: '0.75rem',
+    fontSize: '0.875rem',
+    color: '#9ca3af',
+    fontStyle: 'italic'
   },
   
   tabContainer: {
@@ -827,10 +911,28 @@ const styles = {
   },
   
   // Tier styles
+  tierHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '1rem'
+  },
+  
   tierTitle: {
     fontSize: '1.25rem',
     fontWeight: 'bold',
-    marginBottom: '1rem'
+    margin: 0
+  },
+  
+  expandButton: {
+    background: 'rgba(255, 255, 255, 0.1)',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    borderRadius: '0.375rem',
+    padding: '0.375rem 0.75rem',
+    color: 'white',
+    fontSize: '0.875rem',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease'
   },
   
   playerList: {
@@ -887,6 +989,14 @@ const styles = {
     padding: '0.5rem',
     borderRadius: '0.25rem',
     fontSize: '0.875rem'
+  },
+  
+  moreText: {
+    textAlign: 'center',
+    color: '#9ca3af',
+    fontSize: '0.875rem',
+    marginTop: '0.5rem',
+    fontStyle: 'italic'
   },
   
   // Action buttons

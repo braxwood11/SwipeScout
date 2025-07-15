@@ -6,10 +6,10 @@ import OverallSummary from './OverallSummary';
 
 // Position limits configuration
 const POSITION_LIMITS = {
-  'QB': 32,
-  'RB': 75, 
-  'WR': 100,
-  'TE': 40
+  'QB': 30,
+  'RB': 50, 
+  'WR': 60,
+  'TE': 25
 };
 
 // Position display configuration
@@ -225,8 +225,10 @@ export default function SwipeDeck() {
     );
   }
 
-  // Show overall summary once all positions are complete
-if (completedPositions.size === Object.keys(POSITION_CONFIG).length) {
+   // Show overall summary only when all positions are done *and*
+   // you’re no longer inside an individual position screen
+  if (!currentPosition &&
+      completedPositions.size === Object.keys(POSITION_CONFIG).length) {
   return (
     <OverallSummary 
       onViewDraftPlan={() => {
@@ -236,8 +238,10 @@ if (completedPositions.size === Object.keys(POSITION_CONFIG).length) {
         localStorage.removeItem(STORAGE_KEY);
         localStorage.removeItem(PROGRESS_STORAGE_KEY);
         localStorage.removeItem(COMPLETED_POSITIONS_KEY);
+        localStorage.removeItem(SWIPE_COUNTER_KEY);
         setCompletedPositions(new Set());
         setPrefs({});
+        setPositionProgress({});
       }}
     />
   );
