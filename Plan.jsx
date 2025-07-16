@@ -53,6 +53,10 @@ export default function Plan() {
     
     loadDraftPlan();
   }, []);
+
+  const goBackToSummaries = () => {
+    window.location.href = window.location.pathname; // Remove ?plan from URL
+  };
   
   if (loading) {
     return (
@@ -77,33 +81,40 @@ export default function Plan() {
   
   return (
     <div style={styles.container}>
-      {/* Header */}
+       {/* Header */}
       <header style={styles.header}>
-        <h1 style={styles.title}>Your Championship Draft Plan</h1>
-        <p style={styles.subtitle}>
-          Based on {draftData.evaluatedPlayers} player evaluations
-        </p>
+        {/* Back Button */}
+        <button onClick={goBackToSummaries} style={styles.backButton}>
+          ← Back to Summaries
+        </button>
         
-        {/* View Mode Toggle */}
-        <div style={styles.viewToggle}>
-          <button
-            style={{
-              ...styles.toggleButton,
-              ...(viewMode === 'snake' ? styles.activeToggle : {})
-            }}
-            onClick={() => setViewMode('snake')}
-          >
-            🐍 Snake Draft
-          </button>
-          <button
-            style={{
-              ...styles.toggleButton,
-              ...(viewMode === 'auction' ? styles.activeToggle : {})
-            }}
-            onClick={() => setViewMode('auction')}
-          >
-            💰 Auction
-          </button>
+        <div style={styles.headerContent}>
+          <h1 style={styles.title}>Your Championship Draft Plan</h1>
+          <p style={styles.subtitle}>
+            Based on {draftData.evaluatedPlayers} player evaluations
+          </p>
+          
+          {/* View Mode Toggle */}
+          <div style={styles.viewToggle}>
+            <button
+              style={{
+                ...styles.toggleButton,
+                ...(viewMode === 'snake' ? styles.activeToggle : {})
+              }}
+              onClick={() => setViewMode('snake')}
+            >
+              🐍 Snake Draft
+            </button>
+            <button
+              style={{
+                ...styles.toggleButton,
+                ...(viewMode === 'auction' ? styles.activeToggle : {})
+              }}
+              onClick={() => setViewMode('auction')}
+            >
+              💰 Auction
+            </button>
+          </div>
         </div>
       </header>
       
@@ -158,7 +169,7 @@ function OverviewSection({ analysis, tiers, viewMode, auctionStrategy }) {
   return (
     <div style={styles.overviewContainer}>
       {/* Critical Decisions Alert */}
-      {analysis.criticalDecisions.length > 0 && (
+     {analysis.criticalDecisions.length > 0 && (
         <div style={styles.alertSection}>
           <h2 style={styles.alertTitle}>⚠️ Critical Draft Decisions</h2>
           {analysis.criticalDecisions
@@ -177,9 +188,9 @@ function OverviewSection({ analysis, tiers, viewMode, auctionStrategy }) {
                     </span>
                   ))}
                 </div>
-              </div>
-            ))}
-        </div>
+              </div> 
+            ))} 
+        </div> 
       )}
       
       {/* Position Priority */}
@@ -226,7 +237,7 @@ function SnakeDraftFlow({ draftFlow }) {
     <div style={styles.flowSection}>
       <h2 style={styles.sectionTitle}>Round-by-Round Strategy</h2>
       <div style={styles.roundsGrid}>
-        {draftFlow.slice(0, 10).map(round => (
+        {draftFlow.map(round => (
           <div key={round.round} style={styles.roundCard}>
             <h4 style={styles.roundNumber}>Round {round.round}</h4>
             {round.recommendations.length > 0 ? (
@@ -456,9 +467,29 @@ const styles = {
   },
   
   header: {
+    position: 'relative',
     padding: '2rem',
     textAlign: 'center',
     borderBottom: '1px solid #334155'
+  },
+
+  backButton: {
+    position: 'absolute',
+    top: '1rem',
+    left: '2rem',
+    background: 'rgba(255, 255, 255, 0.1)',
+    border: '1px solid #475569',
+    color: '#f1f5f9',
+    padding: '0.75rem 1.5rem',
+    borderRadius: '0.5rem',
+    cursor: 'pointer',
+    fontSize: '0.9rem',
+    fontWeight: '500',
+    transition: 'all 0.2s ease'
+  },
+
+  headerContent: {
+    width: '100%'
   },
   
   title: {

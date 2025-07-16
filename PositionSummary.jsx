@@ -65,6 +65,7 @@ const analyzeUserTendencies = (players, prefs, position = null) => {
       valueMetrics.highValue.push(player);
     }
   });
+
   
   // Calculate percentages
   const total = Object.values(ratings).reduce((a, b) => a + b, 0);
@@ -272,7 +273,7 @@ const TierCard = ({ title, players, borderColor, showAll = false, initialShow = 
   );
 };
 
-export default function PositionSummary({ position, onContinue, onRestart }) {
+export default function PositionSummary({ position, onContinue, onRestart, allPositionsComplete = false, onViewDraftPlan, onStartOver }) {
   const [analysis, setAnalysis] = useState(null);
   const [tierData, setTierData] = useState(null);
   const [narratives, setNarratives] = useState([]);
@@ -548,17 +549,19 @@ export default function PositionSummary({ position, onContinue, onRestart }) {
           </div>
         )}
         
-        {/* Action Buttons */}
-        <div style={styles.actions}>
-          <button onClick={onContinue} style={styles.primaryButton}>
-            {position ? 'View Other Positions' : 'View Draft Plan'}
-          </button>
-          <button onClick={onRestart} style={styles.secondaryButton}>
-            {position ? 'Restart This Position' : 'Start Over'}
-          </button>
+       {/* Action Buttons - simplified since main actions are in hero */}
+        {!allPositionsComplete && (
+          <div style={styles.actions}>
+            <button onClick={onContinue} style={styles.primaryButton}>
+              View other positions
+            </button>
+            <button onClick={onRestart} style={styles.secondaryButton}>
+              Restart This Position
+            </button>
+          </div>
+        )}
         </div>
       </div>
-    </div>
   );
 }
 

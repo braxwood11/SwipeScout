@@ -37,14 +37,21 @@ export function buildVORPTiers(players, prefs) {
   positions.forEach(position => {
     const positionPlayers = players
       .filter(p => p.position === position)
-      .map(p => ({
-        ...p,
-        preference: prefs[p.id] || -2, // -2 for unrated
-        isLiked: prefs[p.id] >= 1,
-        isLoved: prefs[p.id] === 2
-      }))
+      .map((p, idx) => {
+    const pref = prefs[p.id] ?? -2;
+
+    // attach _estRound so downstream logic can sort / filter
+    p._estRound = estimateRound(idx, position);
+
+   return {
+      ...p,
+     preference : pref,
+      isLiked    : pref >= 1,
+      isLoved    : pref === 2
+    };
+  })
       .sort((a, b) => b.vorp - a.vorp); // Sort by VORP descending
-    
+
     allTiers[position] = createPositionTiers(positionPlayers, position);
   });
   
@@ -276,64 +283,105 @@ function calculatePositionScarcity(tiers) {
   return scarcity.sort((a, b) => b.scarcityScore - a.scarcityScore);
 }
 
+function estimateRound(idx, position) {
+  const baselines = { QB: 8, RB: 4, WR: 5, TE: 7 };   // where tier-1 ends
+  const stride    = { QB: 12, RB: 18, WR: 20, TE: 12 }; // players per round after BL
+
+  const base = baselines[position] ?? 5;
+  const step = stride[position]    ?? 18;
+
+  return 1 + Math.floor((idx - base) / step);
+}
+
 function generateDraftFlow(tiers, scarcity) {
-  const flow = [];
-  const rounds = 16;
-  
-  for (let round = 1; round <= rounds; round++) {
-    const recommendations = [];
-    
-    // Early rounds (1-3): Focus on elite tiers
-    if (round <= 3) {
+  const flow         = [];
+  const takenIds     = new Set();      // prevents repeats across rounds
+  const MAX_ROUNDS   = 16;
+  const SUGG_PER_RND = 4;
+
+  /* rank helper — bigger = higher urgency                          */
+  const urgencyRank = (txt) =>
+    txt.includes('Elite')        ? 4 :
+    txt.includes('Last chance')  ? 3 :
+    txt.includes('Early Edge')   ? 2 :
+    txt.includes('Fair Value')   ? 1 : 0;
+
+  const fresh = (list) => list.filter(p => !takenIds.has(p.id));
+
+  for (let round = 1; round <= MAX_ROUNDS; round++) {
+    const recs = [];
+
+    /* ---------- 1) CHASM / CRITICAL pick, due this round -------- */
+    scarcity.forEach(pos => {
+      const t = tiers[pos.position].find(tier =>
+        tier.isChasm &&
+        fresh(tier.likedPlayers).some(p => p._estRound <= round)
+      );
+      if (t) {
+        recs.push({
+          position: pos.position,
+          reason: 'Last chance before major drop-off',
+          targets: fresh(t.likedPlayers).slice(0, 2)
+        });
+      }
+    });
+
+    /* ---------- 2) “on-time” value picks (liked/loved) ---------- */
+    if (recs.length < SUGG_PER_RND) {
       scarcity.forEach(pos => {
-        if (pos.priority !== 'SKIP_EARLY') {
-          const tier = tiers[pos.position][0]; // Elite tier
-          if (tier && tier.likedPlayers.length > 0) {
-            recommendations.push({
+        tiers[pos.position].forEach(tier => {
+          const pool = fresh([
+            ...tier.lovedPlayers,
+            ...tier.likedPlayers
+          ]);
+
+          // window widens as draft goes on
+          const onTime = pool.filter(p => p._estRound <= round + 1);
+          if (!onTime.length) return;
+
+          // late rounds (11+)  →   only rookies / hand-cuffs / deep upside
+          const lateBench = round >= 11;
+          const picks = lateBench
+            ? onTime.filter(p =>
+                p.rookie ||
+                p.position !== 'QB' && p.vorp < 0)          // crude hand-cuff proxy
+            : onTime;
+
+          if (picks.length && recs.length < SUGG_PER_RND) {
+            recs.push({
               position: pos.position,
-              targets: tier.likedPlayers.slice(0, 3),
-              reason: `Elite ${pos.position} opportunity`
-            });
-          }
-        }
-      });
-    }
-    // Middle rounds (4-8): Balance and value
-    else if (round <= 8) {
-      scarcity.forEach(pos => {
-        const relevantTiers = tiers[pos.position].slice(1, 4); // Tiers 2-4
-        relevantTiers.forEach(tier => {
-          if (tier.likedPlayers.length > 0) {
-            recommendations.push({
-              position: pos.position,
-              targets: tier.likedPlayers.slice(0, 2),
-              reason: tier.isChasm ? 'Last chance before dropoff' : 'Good value'
+              reason: tier.isChasm        ? 'Last chance before drop-off'
+                   : tier.tierNumber === 1 ? 'Elite Tier'
+                   : tier.tierNumber === 2 ? 'Early Edge'
+                   : 'Fair Value',
+              targets: picks.slice(0, 2)
             });
           }
         });
       });
     }
-    // Late rounds (9+): Best available and upside
-    else {
-      Object.entries(tiers).forEach(([position, positionTiers]) => {
-        positionTiers.slice(4).forEach(tier => {
-          if (tier.lovedPlayers.length > 0) {
-            recommendations.push({
-              position,
-              targets: tier.lovedPlayers,
-              reason: 'Late-round love'
-            });
-          }
-        });
-      });
-    }
-    
+
+    /* mark suggested players so they don’t repeat later */
+    recs.forEach(r => r.targets.forEach(p => takenIds.add(p.id)));
+
+    /* -------- collapse to one suggestion per position ----------- */
+    const best = new Map();   // position → best rec
+    recs.forEach(r => {
+      const cur = best.get(r.position);
+      if (!cur || urgencyRank(r.reason) > urgencyRank(cur.reason)) {
+        best.set(r.position, r);
+      }
+    });
+
     flow.push({
       round,
-      recommendations: recommendations.slice(0, 4) // Top 4 options
+      recommendations: [...best.values()]
+        // order by urgency first, then by scarcity list order
+        .sort((a, b) => urgencyRank(b.reason) - urgencyRank(a.reason))
+        .slice(0, SUGG_PER_RND)
     });
   }
-  
+
   return flow;
 }
 

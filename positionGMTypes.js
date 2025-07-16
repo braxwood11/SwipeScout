@@ -390,31 +390,40 @@ export const TE_GM_TYPES = {
   },
   
   'teTruthers': {
-    name: 'The TE Truther',
-    icon: '🙌',
-    description: 'You believe in the TE position deeply',
-    color: '#4169E1',
-    detection: (analysis, players, prefs) => {
-      const lovedTEs = players.filter(p => p.position === 'TE' && prefs[p.id] >= 1);
-      const uniqueTeams = new Set(lovedTEs.map(te => te.team));
-      const priceRange = Math.max(...lovedTEs.map(te => te.auction)) - Math.min(...lovedTEs.map(te => te.auction));
-      return lovedTEs.length >= 5 && uniqueTeams.size >= 4 && priceRange > 10;
-    }
-  },
+  detection: (analysis, players, prefs) => {
+    const tes = players.filter(p => p.position === 'TE');
+    const ratedTEs = tes.filter(te => prefs[te.id] !== undefined);
+    
+    if (ratedTEs.length < 8) return false;
+    
+    const likedTEs = tes.filter(te => prefs[te.id] >= 1);
+    const passedTEs = tes.filter(te => prefs[te.id] === -1);
+    
+    const positiveRate = likedTEs.length / ratedTEs.length;
+    const passRate = passedTEs.length / ratedTEs.length;
+    
+    // More realistic: 40%+ positive, 50% or lower pass rate
+    return positiveRate >= 0.4 && passRate <= 0.5 && likedTEs.length >= 4;
+  }
+},
   
   'kelceTheorySubscriber': {
-    name: 'The Kelce Theory Subscriber',
-    icon: '1️⃣',
-    description: 'One elite TE, then ignore the position',
-    color: '#DC143C',
-    detection: (analysis, players, prefs) => {
-      const tes = players.filter(p => p.position === 'TE');
-      const sortedTEs = tes.sort((a, b) => b.fantasyPts - a.fantasyPts);
-      const lovedElite = sortedTEs.slice(0, 3).filter(te => prefs[te.id] === 2);
-      const passedOthers = sortedTEs.slice(3).filter(te => prefs[te.id] === -1);
-      return lovedElite.length === 1 && passedOthers.length >= 5;
-    }
-  },
+  detection: (analysis, players, prefs) => {
+    const tes = players.filter(p => p.position === 'TE');
+    const sortedTEs = tes.sort((a, b) => b.fantasyPts - a.fantasyPts);
+    const ratedTEs = tes.filter(te => prefs[te.id] !== undefined);
+    
+    if (ratedTEs.length < 8) return false;
+    
+    const lovedElite = sortedTEs.slice(0, 5).filter(te => prefs[te.id] === 2);
+    const likedTEs = tes.filter(te => prefs[te.id] >= 1);
+    const passRate = tes.filter(te => prefs[te.id] === -1).length / ratedTEs.length;
+    
+    // More realistic: 75%+ pass rate, 1-2 elite loves, ≤4 total likes
+    return lovedElite.length >= 1 && lovedElite.length <= 2 && 
+           passRate >= 0.75 && likedTEs.length <= 4;
+  }
+},
   
   'streamerSupreme': {
     name: 'The Streamer Supreme',

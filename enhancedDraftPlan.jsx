@@ -212,7 +212,7 @@ function identifyDraftStrategy(scoredPlayers, prefs) {
       lovedByPosition[player.position].push(player);
     }
   });
-  
+
   // Analyze patterns
   const strategies = [];
   
