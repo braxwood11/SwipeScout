@@ -1,6 +1,19 @@
 // src/utils/enhancedDraftPlan.js
 
+/* quick rank stamping ------------------------------------------------ */
+function stampRanks(list) {
+  const byPos = {};
+  list.forEach(p => { (byPos[p.position] ??= []).push(p); });
+  Object.values(byPos).forEach(arr =>
+    arr.sort((a,b) => b.fantasyPts - a.fantasyPts)
+       .forEach((p,i) => { p.positionRank = i + 1; })
+  );
+  [...list].sort((a,b) => b.fantasyPts - a.fantasyPts)
+           .forEach((p,i) => { p.overallRank  = i + 1; });
+}
+
 export function createEnhancedDraftPlan(players, prefs, leagueSize = 12) {
+  stampRanks(players);
   // Map preference values to weights
   const PREF_WEIGHTS = {
     2: 3.0,   // Love - heavily prioritize
@@ -8,6 +21,8 @@ export function createEnhancedDraftPlan(players, prefs, leagueSize = 12) {
     0: 0.7,   // Meh - slight penalty
     '-1': 0.1 // Pass - strong penalty
   };
+
+  const ROOKIE_BONUS = { 2: 25, 1: 10, 0: 0, '-1': -5 };
   
   // Calculate composite score for each player
   const scoredPlayers = players
@@ -28,12 +43,14 @@ export function createEnhancedDraftPlan(players, prefs, leagueSize = 12) {
       
       const valueScore = player.auction > 0 ? (50 / player.auction) : 1;
       const vorpBonus = player.vorp > 0 ? (player.vorp / 100) : 0;
+      const rookieBoost = player.rookie ? (ROOKIE_BONUS[prefScore] ?? 0) : 0;
       
       const compositeScore = (
         weight * 100 +                    // User preference (0-300)
         normalizedPts * 50 +              // Normalized points (0-50)
         valueScore * 20 +                 // Value score (0-40 for great values)
-        vorpBonus * 10                    // VORP bonus (0-10+)
+        vorpBonus * 10 +                    // VORP bonus (0-10+)
+        rookieBoost                       // upside pop
       );
       
       return {
@@ -159,12 +176,26 @@ function generateRoundTargets(scoredPlayers, leagueSize) {
   }));
 }
 
-function getEstimatedRound(player, leagueSize) {
-  // Use fantasy points as proxy for ADP
-  const allAtPosition = player.position;
-  const rankEstimate = Math.ceil(player.fantasyPts / 20); // Rough estimate
-  return Math.max(1, Math.ceil(rankEstimate / leagueSize));
+function getEstimatedRound(player, leagueSize = 12) {
+  // 1️⃣ real ADP if present
+  if (Number.isFinite(player.adp)) {
+    return Math.max(1, Math.ceil(player.adp / leagueSize));
+  }
+
+  // 2️⃣ overall rank fallback
+  if (player.overallRank) {
+    return Math.max(1, Math.ceil(player.overallRank / leagueSize));
+  }
+
+  // 3️⃣ last-ditch position curve
+  const curves = { QB: 10, RB: 6, WR: 6.5, TE: 9 };
+  const denom  = curves[player.position] ?? 8;
+  const posRank = player.positionRank ??
+                  1 + players.filter(p => p.position === player.position &&
+                                           p.fantasyPts > player.fantasyPts).length;
+  return Math.max(1, Math.ceil(posRank / denom));
 }
+
 
 function getRoundStrategy(round, targets) {
   if (round <= 3) return "Target elite players at key positions";
@@ -251,6 +282,12 @@ function generateDraftInsights(scoredPlayers, allPlayers) {
       ...p,
       reason: "Highly ranked but you're not buying in"
     }));
+
+    // Rookies
+
+    insights.rookieUpside = scoredPlayers
+  .filter(p => p.rookie && p.prefScore >= 1)
+  .slice(0, 6);
   
   // Value targets
   insights.valueTargets = scoredPlayers
@@ -359,6 +396,16 @@ export function DraftPlanDisplay({ plan }) {
             ))}
           </div>
         )}
+        {plan.insights.rookieUpside?.length > 0 && (
+  <div className="insight-group">
+    <h3>🚀 Rookie Upside</h3>
+    {plan.insights.rookieUpside.map(p => (
+      <div key={p.id} className="insight-player">
+        {p.name} – loved for ceiling plays
+      </div>
+    ))}
+  </div>
+)}
       </section>
     </div>
   );

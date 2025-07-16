@@ -4,6 +4,7 @@ import { normalizePlayer } from '../utils/normalizePlayer';
 import { generateNarrativeInsights, prioritizeNarratives } from '../utils/narrativeGenerator';
 import { analyzePlayerSynergies } from '../utils/synergyAnalyzer';
 import { getPositionGMType } from '../utils/positionGMTypes';
+import { getOverallGMType } from '../utils/overallGMTypes';
 
 // Storage keys matching your SwipeDeck
 const STORAGE_KEY = 'draftswipe_prefs_v3_4direction';
@@ -15,40 +16,6 @@ const POSITION_CONFIG = {
   'RB': { icon: '🏃', name: 'Running Backs', color: '#10B981' },
   'WR': { icon: '🙌', name: 'Wide Receivers', color: '#F59E0B' },
   'TE': { icon: '🎪', name: 'Tight Ends', color: '#8B5CF6' }
-};
-
-// Overall GM types (used when position is null)
-const OVERALL_GM_TYPES = {
-  'valueHunter': {
-    name: 'The Value Hunter',
-    icon: '💎',
-    description: 'You find diamonds in the rough',
-    color: '#10B981'
-  },
-  'eliteChaser': {
-    name: 'The Elite Chaser', 
-    icon: '👑',
-    description: 'You target proven superstars',
-    color: '#F59E0B'
-  },
-  'balancedBuilder': {
-    name: 'The Balanced Builder',
-    icon: '⚖️',
-    description: 'You value consistency across the board',
-    color: '#3B82F6'
-  },
-  'riskTaker': {
-    name: 'The Risk Taker',
-    icon: '🎲',
-    description: 'You swing for the fences',
-    color: '#EF4444'
-  },
-  'contrarian': {
-    name: 'The Contrarian',
-    icon: '🔄',
-    description: 'You zig when others zag',
-    color: '#8B5CF6'
-  }
 };
 
 // Enhanced analysis function
@@ -111,28 +78,26 @@ const analyzeUserTendencies = (players, prefs, position = null) => {
   // Determine GM type based on patterns
   let gmType = 'balancedBuilder';
   let gmTypeDetails = null;
+  const base = { distribution, ratings, valueMetrics };
   
   if (position) {
     // Use position-specific GM types
     gmTypeDetails = getPositionGMType(
-        position,
-        { gmType, distribution, ratings },
-        relevantPlayers,
-        prefs
-    );
+     position,
+     { ...base, gmType },
+     relevantPlayers,
+     prefs
+   );
     gmType = gmTypeDetails.key;
   } else {
-    // For overall view, use traditional GM type logic
-    if (valueMetrics.lowValue.length > valueMetrics.highValue.length * 2) {
-      gmType = 'valueHunter';
-    } else if (valueMetrics.highValue.length >= 5) {
-      gmType = 'eliteChaser';
-    } else if (ratings.love < total * 0.05 && total > 20) {
-      gmType = 'contrarian';
-    } else if (valueMetrics.loved.filter(p => p.rookie).length >= 3) {
-      gmType = 'riskTaker';
-    }
-  }
+    // Use new overall GM type system with multi-signal detection
+  gmTypeDetails = getOverallGMType(
+     { ...base, gmType },
+     players,       // all players
+     prefs
+   );
+  gmType = gmTypeDetails.key;
+ }
   
   // Find sleepers (loved players with low projections)
   const avgFantasyPts = relevantPlayers.reduce((sum, p) => sum + p.fantasyPts, 0) / relevantPlayers.length;
@@ -381,14 +346,13 @@ export default function PositionSummary({ position, onContinue, onRestart }) {
     );
   }
   
-  const personality = position 
-    ? (analysis.gmTypeDetails || { 
-        name: 'The Balanced Builder', 
-        icon: '⚖️', 
-        description: `You maintain flexibility at ${position}`,
-        color: '#3B82F6'
-      })
-    : OVERALL_GM_TYPES[analysis.gmType];
+ const personality = analysis.gmTypeDetails || {
+ 
+  name: 'The Balanced Builder',
+  icon: '⚖️',
+  description: 'You maintain a measured approach',
+  color: '#3B82F6'
+ };
   
   return (
     <div style={styles.container}>

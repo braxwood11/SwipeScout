@@ -87,7 +87,7 @@ export const QB_GM_TYPES = {
   },
   
   'floorGeneral': {
-    name: 'The Floor General',
+    name: 'The Field General',
     icon: '🛡️',
     description: 'You value QB consistency above all',
     color: '#228B22',
