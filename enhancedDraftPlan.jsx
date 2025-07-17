@@ -68,7 +68,7 @@ export function createEnhancedDraftPlan(players, prefs, leagueSize = 12) {
   const tiers = createSmartTiers(scoredPlayers);
   
   // Generate round-by-round targets
-  const roundTargets = generateRoundTargets(scoredPlayers, leagueSize);
+  const roundTargets = generateRoundTargets(scoredPlayers, leagueSize, players);
   
   // Identify draft strategies based on preferences
   const strategy = identifyDraftStrategy(scoredPlayers, prefs);
@@ -137,38 +137,39 @@ function getTierDescription(tierPlayers, tierNumber) {
   return "Avoid Unless Necessary";
 }
 
-function generateRoundTargets(scoredPlayers, leagueSize) {
+function generateRoundTargets(scoredPlayers, leagueSize, allPlayers) {
   const rounds = Array.from({ length: 16 }, () => []);
   const positionCounts = { QB: 0, RB: 0, WR: 0, TE: 0 };
   const maxPositions = { QB: 2, RB: 6, WR: 6, TE: 2 };
   
-  // First pass: Assign loved players to appropriate rounds
-  const lovedPlayers = scoredPlayers.filter(p => p.prefScore === 2);
+  // Create a combined list of loved and liked players, sorted by composite score
+  const targetPlayers = scoredPlayers
+    .filter(p => p.prefScore >= 1) // Love (2) or Like (1)
+    .sort((a, b) => {
+      // Sort by preference first (love > like), then by composite score
+      if (a.prefScore !== b.prefScore) {
+        return b.prefScore - a.prefScore;
+      }
+      return b.compositeScore - a.compositeScore;
+    });
   
-  lovedPlayers.forEach(player => {
+  // Assign players to rounds
+  targetPlayers.forEach(player => {
     if (positionCounts[player.position] >= maxPositions[player.position]) return;
     
-    // Estimate round based on typical ADP patterns
-    const estimatedRound = getEstimatedRound(player, leagueSize);
-    if (estimatedRound <= 16) {
-      rounds[estimatedRound - 1].push(player);
-      positionCounts[player.position]++;
+    const estimatedRound = getEstimatedRound(player, leagueSize, allPlayers);
+    
+    // Try to place in estimated round, but be flexible within 1 round
+    for (let r = Math.max(1, estimatedRound - 1); r <= Math.min(16, estimatedRound + 1); r++) {
+      if (rounds[r - 1].length < 4) { // Max 4 targets per round
+        rounds[r - 1].push(player);
+        positionCounts[player.position]++;
+        break;
+      }
     }
   });
   
-  // Second pass: Fill with liked players
-  const likedPlayers = scoredPlayers.filter(p => p.prefScore === 1);
-  
-  likedPlayers.forEach(player => {
-    if (positionCounts[player.position] >= maxPositions[player.position]) return;
-    
-    const estimatedRound = getEstimatedRound(player, leagueSize);
-    if (estimatedRound <= 16 && rounds[estimatedRound - 1].length < 3) {
-      rounds[estimatedRound - 1].push(player);
-      positionCounts[player.position]++;
-    }
-  });
-  
+  // Sort players within each round by composite score
   return rounds.map((roundPlayers, index) => ({
     round: index + 1,
     targets: roundPlayers.sort((a, b) => b.compositeScore - a.compositeScore),
@@ -176,32 +177,131 @@ function generateRoundTargets(scoredPlayers, leagueSize) {
   }));
 }
 
-function getEstimatedRound(player, leagueSize = 12) {
-  // 1️⃣ real ADP if present
+function getEstimatedRound(player, leagueSize = 12, allPlayers) {
+  // 1️⃣ Use real ADP if available (most reliable)
   if (Number.isFinite(player.adp)) {
     return Math.max(1, Math.ceil(player.adp / leagueSize));
   }
 
-  // 2️⃣ overall rank fallback
+  // 2️⃣ Use overall rank if available
   if (player.overallRank) {
     return Math.max(1, Math.ceil(player.overallRank / leagueSize));
   }
 
-  // 3️⃣ last-ditch position curve
-  const curves = { QB: 10, RB: 6, WR: 6.5, TE: 9 };
-  const denom  = curves[player.position] ?? 8;
-  const posRank = player.positionRank ??
-                  1 + players.filter(p => p.position === player.position &&
-                                           p.fantasyPts > player.fantasyPts).length;
-  return Math.max(1, Math.ceil(posRank / denom));
+  // 3️⃣ Enhanced position-based estimation using VORP and fantasy points
+  
+  // Get all players at this position for context
+  const positionPlayers = allPlayers
+    .filter(p => p.position === player.position)
+    .sort((a, b) => b.fantasyPts - a.fantasyPts);
+  
+  // Calculate player's position rank if not already set
+  const posRank = player.positionRank || 
+    (1 + positionPlayers.findIndex(p => p.id === player.id));
+  
+  // Base round estimates by position (when top players typically go)
+  const positionStartRounds = {
+    QB: 4,   // Elite QBs start going round 4-5
+    RB: 1,   // Elite RBs go immediately
+    WR: 1,   // Elite WRs also go early
+    TE: 3    // Elite TEs go rounds 3-4
+  };
+  
+  // How many players per round after the elite tier
+  const playersPerRound = {
+    QB: 1.5,  // ~1-2 QBs per round after the rush
+    RB: 2.5,  // ~2-3 RBs per round (high demand)
+    WR: 3,    // ~3 WRs per round
+    TE: 1     // ~1 TE per round after elite
+  };
+  
+  // Elite tier sizes (these go before the per-round pace)
+  const eliteTierSize = {
+    QB: 3,   // Top 3 QBs are elite
+    RB: 8,   // Top 8 RBs are elite (scarcity!)
+    WR: 10,  // Top 10 WRs are elite
+    TE: 3    // Top 3 TEs are elite
+  };
+  
+  const startRound = positionStartRounds[player.position] || 3;
+  const perRound = playersPerRound[player.position] || 2;
+  const eliteSize = eliteTierSize[player.position] || 5;
+  
+  // If player is in elite tier, distribute them across early rounds
+  if (posRank <= eliteSize) {
+    // Spread elite players across their typical draft range
+    const eliteRounds = player.position === 'QB' ? 3 : 
+                       player.position === 'TE' ? 2 : 4;
+    return startRound + Math.floor((posRank - 1) * eliteRounds / eliteSize);
+  }
+  
+  // For non-elite players, calculate based on steady per-round pace
+  const playersAfterElite = posRank - eliteSize;
+  const roundsAfterElite = Math.ceil(playersAfterElite / perRound);
+  const estimatedRound = startRound + Math.ceil(eliteSize / perRound) + roundsAfterElite;
+  
+  // 4️⃣ Apply VORP-based adjustments
+  if (player.vorp) {
+    // High VORP players should go earlier
+    if (player.vorp > 50) {
+      return Math.max(1, estimatedRound - 2);
+    } else if (player.vorp > 30) {
+      return Math.max(1, estimatedRound - 1);
+    } else if (player.vorp < 0) {
+      // Negative VORP means below replacement level
+      return Math.min(16, estimatedRound + 2);
+    }
+  }
+  
+  // 5️⃣ Apply fantasy points-based adjustments
+  if (player.fantasyPts && positionPlayers.length > 0) {
+    const maxPts = positionPlayers[0].fantasyPts;
+    const ptsRatio = player.fantasyPts / maxPts;
+    
+    // If player has 90%+ of top player's points, they should go early
+    if (ptsRatio > 0.9 && estimatedRound > 6) {
+      return Math.max(3, estimatedRound - 2);
+    } else if (ptsRatio < 0.6 && estimatedRound < 10) {
+      // Low scoring players should go later
+      return Math.min(14, estimatedRound + 2);
+    }
+  }
+  
+  return Math.max(1, Math.min(16, Math.round(estimatedRound)));
 }
 
 
 function getRoundStrategy(round, targets) {
-  if (round <= 3) return "Target elite players at key positions";
-  if (round <= 6) return "Fill starting lineup with high-upside players";
-  if (round <= 10) return "Depth and upside plays";
-  return "Fliers and handcuffs";
+  const positions = targets.map(p => p.position);
+  const hasRB = positions.includes('RB');
+  const hasWR = positions.includes('WR');
+  
+  if (round <= 2) {
+    if (hasRB && hasWR) return "Foundation picks - grab your top RB or WR";
+    if (hasRB) return "Secure an elite RB while they last";
+    if (hasWR) return "Elite WR value - consider hero RB strategy";
+    return "Focus on elite talent at any position";
+  }
+  
+  if (round <= 4) {
+    if (positions.includes('TE')) return "Elite TE window - positional advantage";
+    if (positions.includes('QB')) return "Top QB tier - consider if value aligns";
+    return "Fill out your core starters";
+  }
+  
+  if (round <= 7) {
+    return "Balance your roster - target best available from your list";
+  }
+  
+  if (round <= 10) {
+    return "Upside plays and depth - your sleeper picks";
+  }
+  
+  if (round <= 13) {
+    return "High-upside bench and handcuffs";
+  }
+  
+  return "Lottery tickets and your favorite deep sleepers";
 }
 
 function identifyDraftStrategy(scoredPlayers, prefs) {

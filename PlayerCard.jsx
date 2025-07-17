@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import TinderCard from 'react-tinder-card';
+import { motion, useMotionValue, useTransform } from 'framer-motion';
 
 // Team colors configuration (keeping exact original)
 const teamColors = {
@@ -59,15 +59,10 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
   const posConfig = positionConfig[position] || positionConfig['QB'];
 
   const handleSuccessfulSwipe = (direction) => {
-    console.log('Swiped', direction);
-    setShowSuccess(direction);
-    
-    // FIXED: Delay the onSwipe callback to allow animation to play
-    setTimeout(() => {
-      setShowSuccess(null);
-      onSwipe(player, direction);
-    }, 600); // Match animation duration
-  };
+  console.log('Swiped', direction);
+  setShowSuccess(direction);
+  
+};
 
   const getCardTransform = () => {
     // For background cards, apply the scaling
@@ -281,13 +276,15 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
         }
 
         .team-accent {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 4px;
-          background: linear-gradient(90deg, var(--team-primary), var(--team-secondary));
-        }
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(90deg, var(--team-primary), var(--team-secondary));
+  border-radius: 4px 4px 0 0;
+  overflow: hidden;
+}
 
         .card-header {
           padding: clamp(1rem, 4vw, 1.5rem) clamp(1rem, 4vw, 1.25rem) 0;
@@ -696,7 +693,7 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
     </div>
   );
 
-  // Only wrap interactive cards in TinderCard - KEEPING NO Z-INDEX to prevent translucency issue
+  // Only wrap interactive cards
   if (!isInteractive) {
     return (
       <div 
@@ -713,34 +710,124 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
     );
   }
 
-  return (
-    <TinderCard
-      className="tinder-card"
-      onSwipe={(dir) => {
-        setIsDragging(false);
-        handleSuccessfulSwipe(dir);
-      }}
-      onCardLeftScreen={() => {
-        setIsDragging(false);
-      }}
-      onTouchStart={() => setIsDragging(true)}
-      onMouseDown={() => setIsDragging(true)}
-      onTouchEnd={() => setIsDragging(false)}
-      onMouseUp={() => setIsDragging(false)}
-      // REMOVED: preventSwipe={['up', 'down']} to allow all 4 directions
-      swipeRequirementType="position"
-      swipeThreshold={80}
-      flickOnSwipe={true}
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        cursor: 'grab',
-        userSelect: 'none',
-        willChange: 'transform'
-      }}
-    >
-      {cardContent}
-    </TinderCard>
-  );
+const x = useMotionValue(0);
+const y = useMotionValue(0);
+const rotateZ = useTransform(x, [-200, 200], [-25, 25]);
+const [isExiting, setIsExiting] = useState(false);
+
+return (
+  <motion.div
+    drag={!isExiting}
+    dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
+    dragElastic={0.4}
+    style={{
+      x,
+      y,
+      rotateZ,
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      cursor: isExiting ? 'default' : 'grab',
+      userSelect: 'none',
+      willChange: 'transform'
+    }}
+    whileDrag={{ cursor: 'grabbing' }}
+    onDragStart={() => {
+      setIsDragging(true);
+      setShowSuccess(null);
+    }}
+    onDrag={(event, info) => {
+      if (isExiting) return;
+      
+      const { offset } = info;
+      
+      if (Math.abs(offset.x) > 40 || Math.abs(offset.y) > 40) {
+        if (Math.abs(offset.x) > Math.abs(offset.y)) {
+          setShowSuccess(offset.x > 0 ? 'right' : 'left');
+        } else {
+          setShowSuccess(offset.y < 0 ? 'up' : 'down');
+        }
+      } else {
+        setShowSuccess(null);
+      }
+    }}
+    onDragEnd={(event, info) => {
+      if (isExiting) return;
+      
+      setIsDragging(false);
+      
+      const { offset, velocity } = info;
+      const threshold = 80;
+      const velocityThreshold = 500;
+      
+      let direction = null;
+      
+      if (Math.abs(offset.x) > Math.abs(offset.y)) {
+        if (offset.x > threshold || velocity.x > velocityThreshold) {
+          direction = 'right';
+        } else if (offset.x < -threshold || velocity.x < -velocityThreshold) {
+          direction = 'left';
+        }
+      } else {
+        if (offset.y < -threshold || velocity.y < -velocityThreshold) {
+          direction = 'up';
+        } else if (offset.y > threshold || velocity.y > velocityThreshold) {
+          direction = 'down';
+        }
+      }
+      
+      if (direction) {
+        // DON'T set isExiting yet - keep card fully visible
+        setShowSuccess(direction);
+        
+        // Show success animation for 800ms while card stays fully visible
+        setTimeout(() => {
+          // NOW start the exit process
+          setIsExiting(true);
+          
+          // Move off-screen in the swipe direction
+          const exitDistance = 500;
+          switch(direction) {
+            case 'right':
+              x.set(exitDistance);
+              break;
+            case 'left':
+              x.set(-exitDistance);
+              break;
+            case 'up':
+              y.set(-exitDistance);
+              break;
+            case 'down':
+              y.set(exitDistance);
+              break;
+          }
+          
+          // Call onSwipe after exit animation starts
+          setTimeout(() => {
+            setShowSuccess(null);
+            onSwipe(player, direction);
+          }, 300); // Time for exit animation to complete
+          
+        }, 550); // Card stays fully visible with overlay for 800ms
+        
+      } else {
+        setShowSuccess(null);
+      }
+    }}
+    animate={isExiting ? {
+      opacity: 0,
+      scale: 0.8
+    } : {
+      opacity: 1,
+      scale: 1
+    }}
+    transition={{
+      type: "spring",
+      stiffness: 400,
+      damping: 40
+    }}
+  >
+    {cardContent}
+  </motion.div>
+);
 }

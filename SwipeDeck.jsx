@@ -3,6 +3,8 @@ import PlayerCard from './PlayerCard';
 import { normalizePlayer } from '../utils/normalizePlayer';
 import PositionSummary from './PositionSummary';
 import OverallSummary from './OverallSummary';
+import { recordSwipe, getGlobalSwipeCount } from '../utils/supabase';
+import GlobalStatsDisplay from './GlobalStatsDisplay';
 
 // Position limits configuration
 const POSITION_LIMITS = {
@@ -60,11 +62,9 @@ export default function SwipeDeck() {
     const raw = localStorage.getItem(PROGRESS_STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
   });
-  // SWIPE COUNTER: New state for global swipe counter
-  const [globalSwipeCount, setGlobalSwipeCount] = useState(() => {
-    const stored = localStorage.getItem(SWIPE_COUNTER_KEY);
-    return stored ? parseInt(stored, 10) : 0;
-  });
+
+  // Add state for global counter (replace your existing globalSwipeCount)
+  const [globalSwipeCount, setGlobalSwipeCount] = useState(0);
 
   // NEW: Helper function to save completed positions
   const saveCompletedPositions = (newCompletedPositions) => {
@@ -83,6 +83,19 @@ export default function SwipeDeck() {
   const getSavedProgress = (position) => {
     return positionProgress[position] || 0;
   };
+
+
+// Load global count on component mount
+useEffect(() => {
+  const loadGlobalCount = async () => {
+    const count = await getGlobalSwipeCount();
+    if (count !== null) {
+      setGlobalSwipeCount(count);
+    }
+  };
+  
+  loadGlobalCount();
+}, []);
 
   // Handle window resize for responsive design
   useEffect(() => {
@@ -148,34 +161,40 @@ export default function SwipeDeck() {
     }
   };
 
-  // SWIPE COUNTER: Updated onSwipe to handle 4 directions and increment global counter
-  const onSwipe = (player, direction) => {
-    const value = DIRECTION_VALUES[direction];
-    const newPrefs = { ...prefs, [player.id]: value };
-    setPrefs(newPrefs);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newPrefs));
-    
-    // SWIPE COUNTER: Increment global swipe counter
-    const newCount = globalSwipeCount + 1;
-    setGlobalSwipeCount(newCount);
-    localStorage.setItem(SWIPE_COUNTER_KEY, newCount.toString());
-    
-    const nextIndex = index + 1;
-    setIndex(nextIndex);
-    
-    // Mark position as completed if we've reached the end
-    if (nextIndex >= positionPlayers.length) {
-      // FIXED: Use the helper function to save completed positions
-      const newCompletedPositions = new Set([...completedPositions, currentPosition]);
-      saveCompletedPositions(newCompletedPositions);
-      
-      // Clear progress for completed position
-      const newProgress = { ...positionProgress };
-      delete newProgress[currentPosition];
-      setPositionProgress(newProgress);
-      localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(newProgress));
+  const onSwipe = async (player, direction) => {
+  const value = DIRECTION_VALUES[direction];
+  const newPrefs = { ...prefs, [player.id]: value };
+  setPrefs(newPrefs);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(newPrefs));
+  
+  // Record analytics and get updated global count
+  try {
+    const result = await recordSwipe(player.id, value);
+    if (result.success && result.globalCount !== null) {
+      // Update global counter from server response
+      setGlobalSwipeCount(result.globalCount);
     }
-  };
+  } catch (error) {
+    console.warn('Analytics recording failed:', error);
+    // Fallback: increment local counter
+    setGlobalSwipeCount(prev => prev + 1);
+  }
+  
+  const nextIndex = index + 1;
+  setIndex(nextIndex);
+  
+  // Mark position as completed if we've reached the end
+  if (nextIndex >= positionPlayers.length) {
+    const newCompletedPositions = new Set([...completedPositions, currentPosition]);
+    saveCompletedPositions(newCompletedPositions);
+    
+    // Clear progress for completed position
+    const newProgress = { ...positionProgress };
+    delete newProgress[currentPosition];
+    setPositionProgress(newProgress);
+    localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(newProgress));
+  }
+};
 
   const resetPosition = () => {
     setIndex(0);
@@ -253,11 +272,7 @@ export default function SwipeDeck() {
       <div style={styles.appContainer}>
         <div style={styles.positionSelectionScreen}>
           {/* SWIPE COUNTER: Global Swipe Counter - shown on position selection screen */}
-          <div style={styles.globalCounter}>
-            <span style={styles.counterLabel}>Global Swipes:</span>
-            <span style={styles.counterValue}>{formatSwipeCount(globalSwipeCount)}</span>
-          </div>
-          
+          <GlobalStatsDisplay globalSwipeCount={globalSwipeCount} />
           <div style={styles.positionHeader}>
             <h1 style={styles.positionHeaderTitle}>SwipeScout</h1>
             <p style={styles.positionHeaderSubtitle}>Select a position to start evaluating players</p>
