@@ -913,6 +913,19 @@ const styles = {
     marginBottom: '2rem'
   },
 
+  deck: {
+  position: 'relative',
+  width: '100vw', // Full width container
+  height: 'min(480px, calc(100vh - 300px))',
+  flexShrink: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  // Add this to constrain the inner positioning area
+  maxWidth: '400px',
+  margin: '0 auto'
+},
+
   completionActions: {
     display: 'flex',
     flexDirection: 'column',

@@ -725,8 +725,16 @@ return (
       y,
       rotateZ,
       position: 'absolute',
+      inset   : 0,
       top: 0,
       left: 0,
+      right: 0,
+      bottom: 0,
+      margin: 'auto',
+      width: '100%',
+      height: '100%',
+      maxWidth : 320, 
+      maxHeight: 480,
       cursor: isExiting ? 'default' : 'grab',
       userSelect: 'none',
       willChange: 'transform'
@@ -806,9 +814,9 @@ return (
           setTimeout(() => {
             setShowSuccess(null);
             onSwipe(player, direction);
-          }, 300); // Time for exit animation to complete
+          }, 50); // Time for exit animation to complete
           
-        }, 550); // Card stays fully visible with overlay for 800ms
+        }, 450); // Card stays fully visible with overlay for 550ms
         
       } else {
         setShowSuccess(null);
