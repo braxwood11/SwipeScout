@@ -220,8 +220,8 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
       <style jsx>{`
         .player-card {
           will-change: transform;
-          width: min(320px, calc(100vw - 2rem));
-          height: min(480px, calc(100vh - 200px));
+          width: 100%;
+          height: 100%;
           max-height: 500px;
           background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
           border-radius: 24px;
@@ -245,6 +245,8 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
 
         .player-card.background-card {
           pointer-events: none;
+          width : 100% !important;
+  height: 100% !important;
           opacity: 0.4;
           transform: scale(calc(0.95 - var(--card-index) * 0.03)) translateY(calc(var(--card-index) * 6px)) !important;
           transform-origin: center center;
@@ -646,7 +648,7 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
         /* Enhanced mobile responsiveness */
         @media (max-width: 480px) {
           .player-card {
-            width: calc(100vw - 1.5rem);
+            width: 100%;
             height: min(420px, calc(100vh - 180px));
           }
 
@@ -700,8 +702,9 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
         className="background-card-wrapper"
         style={{
           position: 'absolute',
-          top: 0,
-          left: 0,
+          inset    : 0,      // top/right/bottom/left: 0
+    width    : '100%',
+    height   : '100%',
           pointerEvents: 'none'
         }}
       >

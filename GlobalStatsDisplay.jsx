@@ -69,7 +69,7 @@ export default function GlobalStatsDisplay({ globalSwipeCount }) {
           {formatNumber(globalSwipeCount)}
         </span>
         <span style={styles.label}>
-          🌍 Global Total Swipes
+          🌍 Total Global Swipes
         </span>
       </div>
     </div>
