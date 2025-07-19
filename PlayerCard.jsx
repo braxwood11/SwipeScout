@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { PlayerAvatar } from './PlayerAvatar';
 import { motion, useMotionValue, useTransform } from 'framer-motion';
 
 // Team colors configuration (keeping exact original)
@@ -183,17 +184,8 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
       {/* Avatar section */}
       <div className="card-body">
         <div className="avatar-section">
-          <div 
-            className="avatar-placeholder"
-            style={{
-              background: `linear-gradient(135deg, ${teamColor.primary} 0%, ${teamColor.secondary} 100%)`
-            }}
-          >
-            <div className="avatar-initials">
-              {name.split(' ').map(n => n[0]).join('')}
-            </div>
-          </div>
-        </div>
+  <PlayerAvatar player={player} size={120} />
+</div>
 
         {/* Stats section - FIXED: Better responsive layout */}
         <div className="stats-grid">
@@ -247,7 +239,7 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           pointer-events: none;
           width : 100% !important;
   height: 100% !important;
-          opacity: 0.4;
+          filter: brightness(0.8) saturate(0.9);
           transform: scale(calc(0.95 - var(--card-index) * 0.03)) translateY(calc(var(--card-index) * 6px)) !important;
           transform-origin: center center;
         }
@@ -277,16 +269,16 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
           transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
 
-        .team-accent {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 4px;
-  background: linear-gradient(90deg, var(--team-primary), var(--team-secondary));
-  border-radius: 4px 4px 0 0;
-  overflow: hidden;
-}
+        .team-accent{
+          position:absolute;
+          top:0;
+          left:12px;
+          right:12px; 
+          height:4px;
+          background:linear-gradient(90deg,var(--team-primary),var(--team-secondary));
+          border-radius:2px;
+          pointer-events:none;
+        }
 
         .card-header {
           padding: clamp(1rem, 4vw, 1.5rem) clamp(1rem, 4vw, 1.25rem) 0;
@@ -703,8 +695,9 @@ export default function PlayerCard({ player, onSwipe, cardIndex = 0, isInteracti
         style={{
           position: 'absolute',
           inset    : 0,      // top/right/bottom/left: 0
-    width    : '100%',
-    height   : '100%',
+          width    : '100%',
+          height   : '100%',
+          borderRadius: 24,
           pointerEvents: 'none'
         }}
       >
@@ -738,6 +731,7 @@ return (
       height: '100%',
       maxWidth : 320, 
       maxHeight: 480,
+      borderRadius: 24,
       cursor: isExiting ? 'default' : 'grab',
       userSelect: 'none',
       willChange: 'transform'

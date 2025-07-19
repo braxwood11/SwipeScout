@@ -17,7 +17,7 @@ const POSITION_LIMITS = {
 // Position display configuration
 const POSITION_CONFIG = {
   'QB': { icon: '🎯', name: 'Quarterbacks', color: '#3B82F6' },
-  'RB': { icon: '🏃', name: 'Running Backs', color: '#10B981' },
+  'RB': { icon: '🏃🏾', name: 'Running Backs', color: '#10B981' },
   'WR': { icon: '🙌', name: 'Wide Receivers', color: '#F59E0B' },
   'TE': { icon: '🎪', name: 'Tight Ends', color: '#8B5CF6' }
 };
@@ -275,7 +275,7 @@ useEffect(() => {
           <GlobalStatsDisplay globalSwipeCount={globalSwipeCount} />
           <div style={styles.positionHeader}>
             <h1 style={styles.positionHeaderTitle}>SwipeScout</h1>
-            <p style={styles.positionHeaderSubtitle}>Select a position to start evaluating players</p>
+            <p style={styles.positionHeaderSubtitle}>Select a position. Swipe ⬆️, ⬇️, ⬅️, or ➡️ to rate players.<br /><br />Complete all 4 positions to unlock your fantasy football draft personality and strategy!</p>
           </div>
 
           <div style={styles.positionGrid}>
@@ -374,6 +374,7 @@ useEffect(() => {
         resetPosition();
         setShowSummary(false);
       }}
+      onClose={() => navigate(-1)}
     />
   );
 }
@@ -485,11 +486,11 @@ useEffect(() => {
             <div style={styles.instructionRow}>
               <span style={styles.instructionItem}>
                 <span style={styles.instructionIcon}>👇</span>
-                <span style={styles.instructionText}>Pass  &nbsp;&nbsp;|</span>
+                <span style={styles.instructionText}>Pass  &nbsp;|</span>
                 <span style={styles.instructionIcon}>👈</span>
-                <span style={styles.instructionText}>Meh  &nbsp;&nbsp;|</span>
+                <span style={styles.instructionText}>Meh  &nbsp;|</span>
                 <span style={styles.instructionIcon}>👉</span>
-                <span style={styles.instructionText}>Like  &nbsp;&nbsp;|</span>
+                <span style={styles.instructionText}>Like  &nbsp;|</span>
                 <span style={styles.instructionIcon}>👆</span>
                 <span style={styles.instructionText}>Love</span>
               </span>

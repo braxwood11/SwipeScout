@@ -2,16 +2,18 @@
 import React, { useEffect, useState } from 'react';
 import { normalizePlayer } from '../utils/normalizePlayer';
 import { buildVORPTiers, analyzeTierTransitions, generateAuctionStrategy } from '../utils/vorpTierBuilder';
+import { ImprovedSnakeDraftFlow } from '../utils/improvedSnakeDraftStrategy.jsx';
+import BackButton from '../components/BackButton';
 
 /* quick rank stamping ------------------------------------------------ */
 function stampRanks(list) {
   const byPos = {};
   list.forEach(p => { (byPos[p.position] ??= []).push(p); });
   Object.values(byPos).forEach(arr =>
-    arr.sort((a,b) => b.fantasyPts - a.fantasyPts)
+    arr.sort((a,b) => b.vorp - a.vorp)
        .forEach((p,i) => { p.positionRank = i + 1; })
   );
-  [...list].sort((a,b) => b.fantasyPts - a.fantasyPts)
+  [...list].sort((a,b) => b.vorp        - a.vorp) 
            .forEach((p,i) => { p.overallRank  = i + 1; });
 }
 
@@ -19,40 +21,59 @@ export default function Plan() {
   const [loading, setLoading] = useState(true);
   const [draftData, setDraftData] = useState(null);
   const [viewMode, setViewMode] = useState('snake'); // 'snake' or 'auction'
+  const [auctionMode, setAuctionMode] = useState('balanced');
   const [selectedPosition, setSelectedPosition] = useState('overview');
   
   useEffect(() => {
     const loadDraftPlan = async () => {
-      try {
-        const response = await fetch('/players.json');
-        const rawPlayers = await response.json();
-        const players = rawPlayers.map(normalizePlayer);
-        stampRanks(players);
-        
-        const prefs = JSON.parse(localStorage.getItem('draftswipe_prefs_v3_4direction') || '{}');
-        
-        // Build VORP-based tiers
-        const tiers = buildVORPTiers(players, prefs);
-        const analysis = analyzeTierTransitions(tiers, prefs);
-        const auctionStrategy = generateAuctionStrategy(tiers);
-        
-        setDraftData({
-          tiers,
-          analysis,
-          auctionStrategy,
-          totalPlayers: players.length,
-          evaluatedPlayers: Object.keys(prefs).length
-        });
-        
-        setLoading(false);
-      } catch (error) {
-        console.error('Error loading draft plan:', error);
-        setLoading(false);
-      }
-    };
-    
-    loadDraftPlan();
-  }, []);
+    try {
+      const response = await fetch('/players.json');
+      const rawPlayers = await response.json();
+      const players = rawPlayers.map(normalizePlayer);
+      stampRanks(players);
+      
+      const prefs = JSON.parse(localStorage.getItem('draftswipe_prefs_v3_4direction') || '{}');
+      
+      // Build VORP-based tiers
+      const tiers = buildVORPTiers(players, prefs);
+      
+      // IMPORTANT CHANGE: Pass players array as third parameter
+      // OLD: const analysis = analyzeTierTransitions(tiers, prefs);
+      // NEW: Pass players array so the improved draft flow can use it
+      const analysis = analyzeTierTransitions(tiers, prefs, players);
+      
+     const auctionStrategy = generateAuctionStrategy(tiers, 200, auctionMode);
+      
+      setDraftData({
+        tiers,
+        analysis,
+        auctionStrategy,
+        totalPlayers: players.length,
+        evaluatedPlayers: Object.keys(prefs).length,
+        prefs: prefs
+      });
+      
+      setLoading(false);
+    } catch (error) {
+      console.error('Error loading draft plan:', error);
+      setLoading(false);
+    }
+  };
+  
+  loadDraftPlan();
+}, []);
+
+useEffect(() => {
+  if (!draftData) return;                 // wait until initial load finished
+  setDraftData(prev => ({
+    ...prev,
+    auctionStrategy: generateAuctionStrategy(
+      prev.tiers,                         // already computed
+      200,                                // budget
+      auctionMode                         // ⭐ current template
+    )
+  }));
+}, [auctionMode, draftData]);
 
   const goBackToSummaries = () => {
     window.location.href = window.location.pathname; // Remove ?plan from URL
@@ -84,9 +105,9 @@ export default function Plan() {
        {/* Header */}
       <header style={styles.header}>
         {/* Back Button */}
-        <button onClick={goBackToSummaries} style={styles.backButton}>
-          ← Back to Summaries
-        </button>
+        <BackButton onClick={goBackToSummaries}>
+    ← Back to Summaries
+  </BackButton>
         
         <div style={styles.headerContent}>
           <h1 style={styles.title}>Your Championship Draft Plan</h1>
@@ -114,7 +135,29 @@ export default function Plan() {
             >
               💰 Auction
             </button>
+            
           </div>
+          <div><br /></div>
+          {viewMode === 'auction' && (
+  <div style={styles.viewToggle}>
+    {[
+      ['starsAndScrubs','⭐ Stars & Scrubs'],
+      ['balanced'      ,'⚖️ Balanced'],
+      ['valueHunter'   ,'🔎 Value Hunter']
+    ].map(([id,label]) => (
+      <button
+        key={id}
+        onClick={() => setAuctionMode(id)}
+        style={{
+          ...styles.toggleButton,
+          ...(auctionMode === id ? styles.activeToggle : {})
+        }}
+      >
+        {label}
+      </button>
+    ))}
+  </div>
+)}
         </div>
       </header>
       
@@ -151,6 +194,7 @@ export default function Plan() {
             tiers={draftData.tiers}
             viewMode={viewMode}
             auctionStrategy={draftData.auctionStrategy}
+            prefs={draftData.prefs}
           />
         ) : (
           <PositionSection 
@@ -165,33 +209,9 @@ export default function Plan() {
 }
 
 // Overview Section Component
-function OverviewSection({ analysis, tiers, viewMode, auctionStrategy }) {
+function OverviewSection({ analysis, tiers, viewMode, auctionStrategy, prefs }) {
   return (
     <div style={styles.overviewContainer}>
-      {/* Critical Decisions Alert */}
-     {analysis.criticalDecisions.length > 0 && (
-        <div style={styles.alertSection}>
-          <h2 style={styles.alertTitle}>⚠️ Critical Draft Decisions</h2>
-          {analysis.criticalDecisions
-            .filter(d => d.urgency === 'CRITICAL')
-            .map((decision, idx) => (
-              <div key={idx} style={styles.criticalAlert}>
-                <div style={styles.alertHeader}>
-                  <span style={styles.alertPosition}>{decision.position}</span>
-                  <span style={styles.alertUrgency}>{decision.urgency}</span>
-                </div>
-                <p style={styles.alertMessage}>{decision.message}</p>
-                <div style={styles.alertPlayers}>
-                  {decision.players.map(p => (
-                    <span key={p.id} style={styles.playerChip}>
-                      {p.name} ({p.team})
-                    </span>
-                  ))}
-                </div>
-              </div> 
-            ))} 
-        </div> 
-      )}
       
       {/* Position Priority */}
       <div style={styles.prioritySection}>
@@ -223,43 +243,14 @@ function OverviewSection({ analysis, tiers, viewMode, auctionStrategy }) {
       </div>
       
       {viewMode === 'snake' ? (
-        <SnakeDraftFlow draftFlow={analysis.draftFlow} />
-      ) : (
-        <AuctionBudget strategy={auctionStrategy} />
-      )}
-    </div>
-  );
-}
-
-// Snake Draft Flow Component
-function SnakeDraftFlow({ draftFlow }) {
-  return (
-    <div style={styles.flowSection}>
-      <h2 style={styles.sectionTitle}>Round-by-Round Strategy</h2>
-      <div style={styles.roundsGrid}>
-        {draftFlow.map(round => (
-          <div key={round.round} style={styles.roundCard}>
-            <h4 style={styles.roundNumber}>Round {round.round}</h4>
-            {round.recommendations.length > 0 ? (
-              round.recommendations.map((rec, idx) => (
-                <div key={idx} style={styles.roundRec}>
-                  <span style={styles.recPosition}>{rec.position}</span>
-                  <span style={styles.recReason}>{rec.reason}</span>
-                  <div style={styles.recTargets}>
-                    {rec.targets.slice(0, 2).map(p => (
-                      <span key={p.id} style={styles.miniChip}>
-                        {p.name.split(' ').pop()}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p style={styles.noTargets}>Best available</p>
-            )}
-          </div>
-        ))}
-      </div>
+  <ImprovedSnakeDraftFlow 
+          draftFlow={analysis.draftFlow} 
+          styles={styles}
+          prefs={prefs}  // Pass prefs here
+        />
+) : (
+  <AuctionBudget strategy={auctionStrategy} />
+)}
     </div>
   );
 }
@@ -1040,5 +1031,201 @@ const styles = {
   
   dropoffValue: {
     fontSize: '0.875rem'
-  }
+  },
+  
+
+// Improved Draft Flow Styles
+improvedDraftFlow: {
+  maxWidth: '1200px',
+  margin: '0 auto',
+  padding: '20px'
+},
+
+improvedDraftFlowTitle: {
+  fontSize: '28px',
+  fontWeight: '700',
+  marginBottom: '24px',
+  color: '#f1f5f9'
+},
+
+improvedRoundCard: {
+  background: '#1e293b',
+  borderRadius: '12px',
+  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
+  padding: '24px',
+  marginBottom: '20px',
+  border: '1px solid #334155',
+  transition: 'all 0.2s ease'
+},
+
+improvedRoundHeader: {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: '16px'
+},
+
+improvedRoundTitle: {
+  fontSize: '20px',
+  fontWeight: '600',
+  color: '#f1f5f9',
+  margin: 0
+},
+
+improvedPickNumber: {
+  fontSize: '14px',
+  color: '#94a3b8',
+  background: '#0f172a',
+  padding: '4px 12px',
+  borderRadius: '20px',
+  fontWeight: '500'
+},
+
+improvedRoundStrategy: {
+  fontSize: '16px',
+  fontWeight: '500',
+  color: '#1f2937',
+  marginBottom: '8px',
+  padding: '12px 16px',
+  background: '#fef3c7',
+  borderRadius: '8px',
+  borderLeft: '4px solid #f59e0b'
+},
+
+improvedRoundContext: {
+  fontSize: '14px',
+  color: '#94a3b8',
+  marginBottom: '20px',
+  fontStyle: 'italic'
+},
+
+improvedRecommendations: {
+  display: 'grid',
+  gap: '16px'
+},
+
+improvedRecommendation: {
+  padding: '16px',
+  borderRadius: '8px',
+  border: '1px solid #334155',
+  transition: 'all 0.2s ease',
+  background: '#0f172a'
+},
+
+improvedRecommendationHigh: {
+  padding: '16px',
+  borderRadius: '8px',
+  border: '1px solid #fca5a5',
+  transition: 'all 0.2s ease',
+  background: '#7f1d1d'
+},
+
+improvedRecommendationMedium: {
+  padding: '16px',
+  borderRadius: '8px',
+  border: '1px solid #fcd34d',
+  transition: 'all 0.2s ease',
+  background: '#78350f'
+},
+
+improvedRecommendationLow: {
+  padding: '16px',
+  borderRadius: '8px',
+  border: '1px solid #4b5563',
+  transition: 'all 0.2s ease',
+  background: '#374151'
+},
+
+improvedRecHeader: {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '12px',
+  marginBottom: '12px'
+},
+
+improvedPositionBadge: {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: '40px',
+  height: '40px',
+  background: '#1f2937',
+  color: 'white',
+  fontWeight: '700',
+  fontSize: '14px',
+  borderRadius: '8px',
+  flexShrink: 0
+},
+
+improvedPositionBadgeHigh: {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: '40px',
+  height: '40px',
+  background: '#dc2626',
+  color: 'white',
+  fontWeight: '700',
+  fontSize: '14px',
+  borderRadius: '8px',
+  flexShrink: 0
+},
+
+improvedPositionBadgeMedium: {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: '40px',
+  height: '40px',
+  background: '#f59e0b',
+  color: 'white',
+  fontWeight: '700',
+  fontSize: '14px',
+  borderRadius: '8px',
+  flexShrink: 0
+},
+
+improvedRecReason: {
+  fontSize: '15px',
+  color: '#cbd5e1',
+  fontWeight: '500',
+  lineHeight: 1.4
+},
+
+improvedRecTargets: {
+  display: 'grid',
+  gap: '8px',
+  marginLeft: '52px' // Align with text after position badge
+},
+
+improvedTargetPlayer: {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px',
+  padding: '8px 12px',
+  background: '#1e293b',
+  borderRadius: '6px',
+  border: '1px solid #334155',
+  fontSize: '14px'
+},
+
+improvedPlayerName: {
+  fontWeight: '600',
+  color: '#f1f5f9'
+},
+
+improvedPlayerTeam: {
+  color: '#94a3b8',
+  fontSize: '13px'
+},
+
+improvedPlayerAdp: {
+  marginLeft: 'auto',
+  fontSize: '12px',
+  color: '#9ca3af',
+  background: '#0f172a',
+  padding: '2px 8px',
+  borderRadius: '12px'
+}
+
 };

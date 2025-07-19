@@ -1,5 +1,5 @@
 // src/utils/vorpTierBuilder.js
-
+import { generateImprovedDraftFlow } from '../utils/improvedSnakeDraftStrategy.jsx';
 /**
  * Creates VORP-based tiers with dropoff detection
  * Identifies "Draft Chasms of Doom" - significant value drops
@@ -198,21 +198,22 @@ function generateTierRecommendation(tierNumber, quality, likedPlayers, position)
 }
 
 // Analyze tier transitions for strategic advice
-export function analyzeTierTransitions(tiers, prefs) {
+export function analyzeTierTransitions(tiers, prefs, players) {
   const analysis = {
     criticalDecisions: [],
     positionPriority: [],
     draftFlow: []
   };
   
-  // Find critical decision points
+  // Identify tier transitions and critical picks
   Object.entries(tiers).forEach(([position, positionTiers]) => {
     positionTiers.forEach((tier, index) => {
+      // Major tier break (chasm)
       if (tier.isChasm && tier.likedPlayers.length > 0) {
         analysis.criticalDecisions.push({
           position,
           tier: tier.tierNumber,
-          message: `MAJOR DROPOFF after ${tier.quality} ${position}s! Last chance for this tier.`,
+          message: `Major dropoff after Tier ${tier.tierNumber}! Last chance for this tier.`,
           players: tier.likedPlayers,
           urgency: 'CRITICAL'
         });
@@ -246,14 +247,24 @@ export function analyzeTierTransitions(tiers, prefs) {
   const positionScarcity = calculatePositionScarcity(tiers);
   analysis.positionPriority = positionScarcity;
   
-  // Create draft flow recommendations
-  analysis.draftFlow = generateDraftFlow(tiers, positionScarcity);
+  // THIS IS THE KEY CHANGE - Replace the old generateDraftFlow call:
+  // OLD: analysis.draftFlow = generateDraftFlow(tiers, positionScarcity);
+  
+  // NEW: Use the improved draft flow generator
+  // You'll need to pass the players array to this function now
+  analysis.draftFlow = generateImprovedDraftFlow(
+    players,           // Pass the full players array
+    prefs,            // Pass the preferences object
+    tiers,            // Pass the VORP tiers
+    12,               // League size (you could make this configurable)
+    6                 // Draft position (you could make this configurable)
+  );
   
   return analysis;
 }
 
 function calculatePositionScarcity(tiers) {
-  const scarcity = [];
+  const posData = [];
   
   Object.entries(tiers).forEach(([position, positionTiers]) => {
     // Count liked players in top tiers
@@ -267,20 +278,32 @@ function calculatePositionScarcity(tiers) {
     
     // Calculate dropoff severity
     const majorDropoffs = positionTiers.filter(t => t.isChasm).length;
+
+    const scarcityScore =
+     (3 - Math.min(topTierCount, 3)) * 4   // reward scarcity up top
+     + majorDropoffs * 3                  // reward big cliffs
+     - totalLiked * 0.5;                  // penalise deep targets
     
-    scarcity.push({
+    posData.push({
       position,
       topTierCount,
       totalLiked,
       majorDropoffs,
-      scarcityScore: (topTierCount * 3) + majorDropoffs - (totalLiked * 0.5),
-      priority: topTierCount === 0 ? 'SKIP_EARLY' : 
-               topTierCount <= 2 ? 'HIGH_PRIORITY' : 
-               'NORMAL'
+      scarcityScore
     });
   });
+
+  posData.sort((a, b) => b.scarcityScore - a.scarcityScore);
+
+  // convert rank → label
+ posData.forEach((p, idx) => {
+   if (p.topTierCount === 0)        p.priority = 'SKIP_EARLY';
+   else if (idx === 0)              p.priority = 'HIGH_PRIORITY';
+   else if (idx === posData.length-1) p.priority = 'LOW_PRIORITY';
+   else                             p.priority = 'NORMAL';
+ });
   
-  return scarcity.sort((a, b) => b.scarcityScore - a.scarcityScore);
+  return posData;
 }
 
 function estimateRound(idx, position) {
@@ -293,100 +316,8 @@ function estimateRound(idx, position) {
   return 1 + Math.floor((idx - base) / step);
 }
 
-function generateDraftFlow(tiers, scarcity) {
-  const flow         = [];
-  const takenIds     = new Set();      // prevents repeats across rounds
-  const MAX_ROUNDS   = 16;
-  const SUGG_PER_RND = 4;
-
-  /* rank helper — bigger = higher urgency                          */
-  const urgencyRank = (txt) =>
-    txt.includes('Elite')        ? 4 :
-    txt.includes('Last chance')  ? 3 :
-    txt.includes('Early Edge')   ? 2 :
-    txt.includes('Fair Value')   ? 1 : 0;
-
-  const fresh = (list) => list.filter(p => !takenIds.has(p.id));
-
-  for (let round = 1; round <= MAX_ROUNDS; round++) {
-    const recs = [];
-
-    /* ---------- 1) CHASM / CRITICAL pick, due this round -------- */
-    scarcity.forEach(pos => {
-      const t = tiers[pos.position].find(tier =>
-        tier.isChasm &&
-        fresh(tier.likedPlayers).some(p => p._estRound <= round)
-      );
-      if (t) {
-        recs.push({
-          position: pos.position,
-          reason: 'Last chance before major drop-off',
-          targets: fresh(t.likedPlayers).slice(0, 2)
-        });
-      }
-    });
-
-    /* ---------- 2) “on-time” value picks (liked/loved) ---------- */
-    if (recs.length < SUGG_PER_RND) {
-      scarcity.forEach(pos => {
-        tiers[pos.position].forEach(tier => {
-          const pool = fresh([
-            ...tier.lovedPlayers,
-            ...tier.likedPlayers
-          ]);
-
-          // window widens as draft goes on
-          const onTime = pool.filter(p => p._estRound <= round + 1);
-          if (!onTime.length) return;
-
-          // late rounds (11+)  →   only rookies / hand-cuffs / deep upside
-          const lateBench = round >= 11;
-          const picks = lateBench
-            ? onTime.filter(p =>
-                p.rookie ||
-                p.position !== 'QB' && p.vorp < 0)          // crude hand-cuff proxy
-            : onTime;
-
-          if (picks.length && recs.length < SUGG_PER_RND) {
-            recs.push({
-              position: pos.position,
-              reason: tier.isChasm        ? 'Last chance before drop-off'
-                   : tier.tierNumber === 1 ? 'Elite Tier'
-                   : tier.tierNumber === 2 ? 'Early Edge'
-                   : 'Fair Value',
-              targets: picks.slice(0, 2)
-            });
-          }
-        });
-      });
-    }
-
-    /* mark suggested players so they don’t repeat later */
-    recs.forEach(r => r.targets.forEach(p => takenIds.add(p.id)));
-
-    /* -------- collapse to one suggestion per position ----------- */
-    const best = new Map();   // position → best rec
-    recs.forEach(r => {
-      const cur = best.get(r.position);
-      if (!cur || urgencyRank(r.reason) > urgencyRank(cur.reason)) {
-        best.set(r.position, r);
-      }
-    });
-
-    flow.push({
-      round,
-      recommendations: [...best.values()]
-        // order by urgency first, then by scarcity list order
-        .sort((a, b) => urgencyRank(b.reason) - urgencyRank(a.reason))
-        .slice(0, SUGG_PER_RND)
-    });
-  }
-
-  return flow;
-}
-
 // Auction-specific analysis
-export function generateAuctionStrategy(tiers, budget = 200) {
+export function generateAuctionStrategy(tiers, budget = 200, mode = 'balanced') {
   const strategy = {
     budgetAllocation: {},
     targetValues: [],
@@ -395,12 +326,14 @@ export function generateAuctionStrategy(tiers, budget = 200) {
   };
   
   // Calculate optimal budget allocation
-  const allocation = {
-    QB: 0,
-    RB: 0,
-    WR: 0,
-    TE: 0
+  const TEMPLATES = {
+   starsAndScrubs: { QB: .10, RB: .42, WR: .38, TE: .10 },
+   balanced      : { QB: .12, RB: .34, WR: .34, TE: .12 },
+   valueHunter   : { QB: .08, RB: .30, WR: .30, TE: .08 }
   };
+
+  const pct = TEMPLATES[mode] ?? TEMPLATES.balanced;
+  const allocation = { QB: 0, RB: 0, WR: 0, TE: 0 };
   
   // Analyze each position
   Object.entries(tiers).forEach(([position, positionTiers]) => {
@@ -430,35 +363,36 @@ export function generateAuctionStrategy(tiers, budget = 200) {
   });
   
   // Normalize to budget
-  const totalAllocation = Object.values(allocation).reduce((a, b) => a + b, 0);
-  const budgetMultiplier = (budget - 20) / totalAllocation; // Save $20 for bench
+  const BENCH = { starsAndScrubs: 10, balanced: 20, valueHunter: 35 }[mode] ?? 20;
+  const spendable = budget - BENCH;
   
   Object.keys(allocation).forEach(pos => {
-    allocation[pos] = Math.round(allocation[pos] * budgetMultiplier);
+    allocation[pos] = Math.round(spendable * pct[pos]);
   });
   
   strategy.budgetAllocation = allocation;
   
   // Nomination strategy
-  strategy.nominations = generateNominationStrategy(tiers);
+  strategy.nominations = generateNominationStrategy(tiers, budget);
+
+  strategy.modeLabel = (
+  { starsAndScrubs: 'Stars & Scrubs',
+     balanced      : 'Balanced',
+     valueHunter   : 'Value Hunter' }[mode] || 'Balanced'
+);
+ strategy.bench     = BENCH;
   
   return strategy;
 }
 
-function generateNominationStrategy(tiers) {
+function generateNominationStrategy(tiers, budget) {
   const nominations = [];
   
   // Nominate expensive players you don't want
-  Object.values(tiers).forEach(positionTiers => {
-    positionTiers[0]?.players.forEach(player => {
-      if (player.preference === -1 && player.auction > 30) {
-        nominations.push({
-          player,
-          reason: 'Expensive player you fade - drain budgets',
-          priority: 'HIGH'
-        });
-      }
-    });
+  Object.values(tiers).flatMap(t => t[0]?.players || []).forEach(p => {
+  if (p.preference <= 0 && p.auction >= 0.15 * budget) {
+    nominations.push({ player: p, reason: 'Budget bomb 💣', priority: 'HIGH' });
+  }
   });
   
   // Nominate players just above your tier breaks

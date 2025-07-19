@@ -5,6 +5,7 @@ import { generateNarrativeInsights, prioritizeNarratives } from '../utils/narrat
 import { analyzePlayerSynergies } from '../utils/synergyAnalyzer';
 import { getPositionGMType } from '../utils/positionGMTypes';
 import { getOverallGMType } from '../utils/overallGMTypes';
+import BackButton from '../components/BackButton';
 
 // Storage keys matching your SwipeDeck
 const STORAGE_KEY = 'draftswipe_prefs_v3_4direction';
@@ -273,7 +274,7 @@ const TierCard = ({ title, players, borderColor, showAll = false, initialShow = 
   );
 };
 
-export default function PositionSummary({ position, onContinue, onRestart, allPositionsComplete = false, onViewDraftPlan, onStartOver }) {
+export default function PositionSummary({ position, onClose, onContinue, onRestart, allPositionsComplete = false, onViewDraftPlan, onStartOver }) {
   const [analysis, setAnalysis] = useState(null);
   const [tierData, setTierData] = useState(null);
   const [narratives, setNarratives] = useState([]);
@@ -357,9 +358,14 @@ export default function PositionSummary({ position, onContinue, onRestart, allPo
   
   return (
     <div style={styles.container}>
+    
       <div style={styles.content}>
         {/* Header */}
+        <button onClick={onContinue} style={styles.secondaryButton}>
+        ← Back
+            </button>
         <h1 style={styles.title}>
+        
           {position ? `${POSITION_CONFIG[position]?.name} Analysis` : 'Overall Analysis'}
         </h1>
         
