@@ -361,9 +361,11 @@ export default function PositionSummary({ position, onClose, onContinue, onResta
     
       <div style={styles.content}>
         {/* Header */}
+        {position && (
         <button onClick={onContinue} style={styles.secondaryButton}>
         ← Back
             </button>
+        )}
         <h1 style={styles.title}>
         
           {position ? `${POSITION_CONFIG[position]?.name} Analysis` : 'Overall Analysis'}

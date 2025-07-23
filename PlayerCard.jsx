@@ -40,7 +40,7 @@ const teamColors = {
 
 const positionConfig = {
   'QB': { icon: '🎯', shape: 'circle', color: '#3B82F6' },
-  'RB': { icon: '🏃', shape: 'square', color: '#10B981' },
+  'RB': { icon: '🏃🏾', shape: 'square', color: '#10B981' },
   'WR': { icon: '🙌', shape: 'diamond', color: '#F59E0B' },
   'TE': { icon: '🎪', shape: 'hexagon', color: '#8B5CF6' },
   'K': { icon: '🦵', shape: 'triangle', color: '#EF4444' },

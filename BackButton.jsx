@@ -2,7 +2,7 @@
 export default function BackButton({ onClick, children = '← Back' }) {
   return (
     <button
-      onClick={onContinue}   // ← fallback
+      onClick={onClick}   // ← fallback
       style={{
         position: 'absolute',
         top: '1rem',

@@ -161,8 +161,10 @@ useEffect(() => {
     }
   };
 
+  const [swipeHistory, setSwipeHistory] = useState([]);
   const onSwipe = async (player, direction) => {
   const value = DIRECTION_VALUES[direction];
+  setSwipeHistory(h => [...h, { player, direction, value }]);
   const newPrefs = { ...prefs, [player.id]: value };
   setPrefs(newPrefs);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(newPrefs));
@@ -194,6 +196,32 @@ useEffect(() => {
     setPositionProgress(newProgress);
     localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(newProgress));
   }
+};
+
+const handleUndo = async () => {
+  if (!swipeHistory.length || index === 0) return;
+
+  // pull the last action
+  const last = swipeHistory[swipeHistory.length - 1];
+
+  // 1) roll the deck back one card
+  setIndex(i => i - 1);
+
+  // 2) delete the local rating
+  setPrefs(p => {
+    const copy = { ...p };
+    delete copy[last.player.id];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(copy));
+    return copy;
+  });
+
+  // 3) optionally delete the row in Supabase
+  if (last.dbRowId) {
+    supabase.from('swipes').delete().eq('id', last.dbRowId);
+  }
+
+  // 4) pop the history
+  setSwipeHistory(h => h.slice(0, -1));
 };
 
   const resetPosition = () => {
@@ -417,6 +445,15 @@ useEffect(() => {
 
       {/* Card Deck */}
       <div style={styles.deckContainer}>
+        {isMobile && swipeHistory.length > 0 && (
+  <button
+    onClick={handleUndo}
+    style={styles.undoFab}
+    aria-label="Undo last swipe"
+  >
+    Undo
+  </button>
+)}
         <div style={styles.deck}>
           {/* Background card 2 (furthest back) */}
           {positionPlayers[index + 2] && (
@@ -453,6 +490,15 @@ useEffect(() => {
         {/* Action Buttons for Desktop/Larger Screens */}
         {!isMobile && (
           <div style={styles.desktopActions}>
+            {swipeHistory.length > 0 && (
+     <button
+      onClick={handleUndo}
+       style={{ ...styles.actionBtn, ...styles.undoBtn }}
+       title="Undo last swipe"
+     >
+       Undo
+     </button>
+   )}
             <button 
               style={{...styles.actionBtn, ...styles.passBtn}}
               onClick={() => onSwipe(currentPlayer, 'down')}
@@ -483,6 +529,7 @@ useEffect(() => {
         {/* Swipe Instructions for Mobile */}
         {isMobile && (
           <div style={styles.swipeInstructions}>
+            
             <div style={styles.instructionRow}>
               <span style={styles.instructionItem}>
                 <span style={styles.instructionIcon}>👇</span>
@@ -920,6 +967,35 @@ const styles = {
     gap: '1rem',
     alignItems: 'center'
   },
+
+  undoBtn: {
+  order: -1,                // appear at the far-left of the row
+  width: 46,
+  height: 46,
+  fontSize: '1rem',
+  lineHeight: 1,
+  background: 'linear-gradient(135deg,#0ea5e9 0%,#0284c7 100%)',
+  color: 'white',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+
+// floating action button for mobile
+undoFab: {
+  position: 'absolute',
+bottom: '75px',
+  left: '0px',
+  zIndex: 10,
+  padding: '4px 5px',
+  fontSize: '1rem',
+  borderRadius: '9999px',
+  background: 'linear-gradient(135deg,#0ea5e9 0%,#0284c7 100%)',
+  color: '#fff',
+  border: 'none',
+  boxShadow: '0 4px 10px rgba(0,0,0,.25)',
+},
+
 
   primaryBtn: {
     background: 'linear-gradient(135deg, #3B82F6 0%, #1d4ed8 100%)',

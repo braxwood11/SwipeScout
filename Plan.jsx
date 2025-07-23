@@ -233,7 +233,9 @@ function OverviewSection({ analysis, tiers, viewMode, auctionStrategy, prefs }) 
               <div style={{
                 ...styles.priorityIndicator,
                 backgroundColor: pos.priority === 'HIGH_PRIORITY' ? '#ef4444' :
-                               pos.priority === 'SKIP_EARLY' ? '#6b7280' : '#3b82f6'
+                               pos.priority === 'SKIP_EARLY' ? '#6b7280' : 
+                               pos.priority === 'LOW_PRIORITY' ? '#10b981' : '#3b82f6'
+
               }}>
                 {pos.priority.replace('_', ' ')}
               </div>
