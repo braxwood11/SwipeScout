@@ -114,7 +114,7 @@ const handleCustomBlur = (position, value) => {
         ) : (
           <>
             <div style={styles.customSection}>
-              <p style={styles.customHint}>Set how many players to rate per position:<br /><i>Note: fewer players = less reliable strategy advice</i></p>
+              <p style={styles.customHint}>Set players to rate per position.<br /><i>Fewer players = less reliable strategy advice</i></p>
               {Object.entries(customLimits).map(([position, value]) => (
                 <div key={position} style={styles.customRow}>
                   <span style={styles.positionLabel}>{position}</span>

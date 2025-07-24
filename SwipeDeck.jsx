@@ -102,6 +102,7 @@ useEffect(() => {
   loadGlobalCount();
 }, []);
 
+
   // Handle window resize for responsive design
   useEffect(() => {
     const handleResize = () => {
@@ -150,6 +151,13 @@ useEffect(() => {
     return grouped;
   }, [allPlayers, positionLimits]);
 
+  const getCounts = React.useCallback((position) => {
+  const list  = processedPositions[position] ?? [];
+  const total = list.length;
+  const rated = list.reduce((n, p) => n + (prefs[p.id] !== undefined), 0);
+  return { total, rated };
+}, [processedPositions, prefs]);
+
   const handleSetupConfirm = (selection) => {
   setPositionLimits(selection.limits);
   localStorage.setItem(POSITION_LIMITS_KEY, JSON.stringify(selection.limits));
@@ -165,20 +173,14 @@ useEffect(() => {
     setIndex(savedIndex);
   };
 
-  // Helper function to get position status and progress info
-  const getPositionStatus = (position) => {
-    const playerCount = processedPositions[position]?.length || 0;
-    const isCompleted = completedPositions.has(position);
-    const currentProgress = positionProgress[position] || 0;
-    
-    if (isCompleted) {
-      return { status: 'Completed', progress: playerCount, total: playerCount };
-    } else if (currentProgress > 0) {
-      return { status: 'In Progress', progress: currentProgress, total: playerCount };
-    } else {
-      return { status: 'Not Started', progress: 0, total: playerCount };
-    }
-  };
+const getPositionStatus = (position) => {
+   const { total, rated } = getCounts(position);
+   if (total === 0) return { status: 'Not Started', progress: 0, total };
+   if (rated >= total) return { status: 'Completed', progress: total, total };
+   if (rated > 0)      return { status: 'In Progress', progress: rated, total };
+      return { status: 'Not Started', progress: 0, total };
+ };
+
 
   const [swipeHistory, setSwipeHistory] = useState([]);
   const onSwipe = async (player, direction) => {
@@ -216,6 +218,15 @@ useEffect(() => {
     localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(newProgress));
   }
 };
+
+const allDone = React.useMemo(
+   () => Object.keys(POSITION_CONFIG).every(pos => {
+     const { total, rated } = getCounts(pos);
+     return total > 0 && rated >= total;
+   }),
+   [getCounts]
+ );
+
 
 const handleUndo = async () => {
   if (!swipeHistory.length || index === 0) return;
@@ -293,7 +304,7 @@ const handleUndo = async () => {
 
    // Show overall summary only when all positions are done *and*
    // you’re no longer inside an individual position screen
-  if (!currentPosition &&
+  if (!currentPosition && allDone &&
       completedPositions.size === Object.keys(POSITION_CONFIG).length) {
   return (
     <OverallSummary 
@@ -327,12 +338,12 @@ const handleUndo = async () => {
     <GlobalStatsDisplay globalSwipeCount={globalSwipeCount} />
   </div>
   <button
-    onClick={() => setShowSetupModal(true)}
-    style={isMobile ? styles.settingsBtnMobile : styles.settingsBtn}
-    aria-label="Settings"
-  >
-    ⚙️
-  </button>
+  onClick={() => setShowSetupModal(true)}
+  style={styles.settingsBtn}
+  aria-label="Settings"
+>
+  <span style={styles.settingsGlyph}>⚙︎</span>
+</button>
 </div>
           <div style={styles.positionHeader}>
             <h1 style={styles.positionHeaderTitle}>SwipeScout</h1>
@@ -397,7 +408,13 @@ const handleUndo = async () => {
           </div>
 
           <div style={styles.overallProgress}>
-            Progress: {completedPositions.size} of {Object.keys(POSITION_CONFIG).length} positions completed
+            {(() => {
+     const done = Object.keys(POSITION_CONFIG).filter(pos => {
+       const { total, rated } = getCounts(pos);
+       return total > 0 && rated >= total;
+     }).length;
+     return `Progress: ${done} of ${Object.keys(POSITION_CONFIG).length} positions completed`;
+   })()}
           </div>
         </div>
         {showSetupModal && (
@@ -447,6 +464,7 @@ const handleUndo = async () => {
 }
 
   const currentPlayer = positionPlayers[index];
+  const { total: totalHere, rated: ratedHere } = getCounts(currentPosition);
   
   return (
     <div style={styles.appContainer}>
@@ -472,13 +490,13 @@ const handleUndo = async () => {
           <div 
             style={{
               ...styles.progressFill,
-              width: `${(index / positionPlayers.length) * 100}%`,
+              width: `${(ratedHere / totalHere) * 100}%`,
               backgroundColor: POSITION_CONFIG[currentPosition]?.color 
             }}
           />
         </div>
         <div style={styles.progressText}>
-          {index + 1} / {positionPlayers.length}
+          {ratedHere} of {totalHere} rated
         </div>
       </div>
 
@@ -1062,37 +1080,42 @@ bottom: '75px',
     minWidth: '200px'
   },
 
-  topBar: {
+ topBar: {
   width: '100%',
   maxWidth: 'min(600px, calc(100vw - 3rem))',
   margin: '0 auto 1.25rem',
   display: 'grid',
-  gridTemplateColumns: '40px 1fr 40px', // left spacer, center counter, right button
-  alignItems: 'center',
-  position: 'relative',
+  gridTemplateColumns: '40px 1fr 40px',
+  alignItems: 'center'
 },
-
-topSlot: { width: 40, height: 1 }, // keeps center true
-
-counterSlot: {
-  justifySelf: 'center',
-},
+topSlot: { width: 40, height: 1 },
+counterSlot: { justifySelf: 'center' },
 
 settingsBtn: {
-  justifySelf: 'end',
+  all: 'unset',                 // nukes UA defaults (including iOS white bg)
+  WebkitAppearance: 'none',
+  appearance: 'none',
+  boxSizing: 'border-box',
   width: 36,
   height: 36,
-  borderRadius: '0.5rem',
-  background: 'rgba(255,255,255,0.1)',
-  border: '1px solid rgba(255,255,255,0.2)',
-  fontSize: '1.25rem',
-  lineHeight: 1,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
+  borderRadius: '8px',
+  display: 'grid',
+  placeItems: 'center',
+  background: 'rgba(255,255,255,0.10)',
+  border: '1px solid rgba(255,255,255,0.20)',
   cursor: 'pointer',
-  transition: 'all .2s',
-  color: '#94a3b8'
+  transition: 'background .15s, color .15s, border-color .15s',
+  color: '#94a3b8',             // icon color
+  WebkitTapHighlightColor: 'transparent'
+},
+settingsGlyph: {
+  fontSize: '22px',
+  lineHeight: 1,
+  transform: 'translateY(-1px)' // nudges emoji to visual center
+},
+settingsBtnHover: {             // if you handle :hover in JS
+  background: 'rgba(255,255,255,0.15)',
+  color: '#f1f5f9'
 },
 
 };
