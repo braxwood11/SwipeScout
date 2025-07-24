@@ -5,14 +5,10 @@ import PositionSummary from './PositionSummary';
 import OverallSummary from './OverallSummary';
 import { recordSwipe, getGlobalSwipeCount } from '../utils/supabase';
 import GlobalStatsDisplay from './GlobalStatsDisplay';
+import RatingSetupModal from './RatingSetupModal';
 
 // Position limits configuration
-const POSITION_LIMITS = {
-  'QB': 30,
-  'RB': 50, 
-  'WR': 60,
-  'TE': 25
-};
+const POSITION_LIMITS_KEY = 'draftswipe_position_limits_v1';
 
 // Position display configuration
 const POSITION_CONFIG = {
@@ -46,6 +42,15 @@ export default function SwipeDeck() {
   const [index, setIndex] = useState(0);
   const [showSummary, setShowSummary] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [showSetupModal, setShowSetupModal] = useState(false);
+const [positionLimits, setPositionLimits] = useState(() => {
+  const saved = localStorage.getItem(POSITION_LIMITS_KEY);
+  if (saved) {
+    return JSON.parse(saved);
+  }
+  // Default limits if nothing saved
+  return { QB: 15, RB: 30, WR: 35, TE: 20 };
+});
   const [prefs, setPrefs] = useState(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
@@ -121,22 +126,36 @@ useEffect(() => {
     }
   }, [index, currentPosition]);
 
+  useEffect(() => {
+   const hasCompletedSetup = localStorage.getItem('draftswipe_setup_complete_v1');
+   if (!hasCompletedSetup && !showSetupModal) {
+    setShowSetupModal(true);
+   }
+  }, []);
+
   // Process players by position when data loads
   const processedPositions = React.useMemo(() => {
     if (!allPlayers.length) return {};
     
     const grouped = {};
-    Object.keys(POSITION_LIMITS).forEach(position => {
+    Object.keys(positionLimits).forEach(position => {
       const positionPlayers = allPlayers
         .filter(p => p.position === position)
         .sort((a, b) => parseFloat(b.fantasyPts) - parseFloat(a.fantasyPts))
-        .slice(0, POSITION_LIMITS[position]);
+        .slice(0, positionLimits[position]);
       
       grouped[position] = positionPlayers;
     });
     
     return grouped;
-  }, [allPlayers]);
+  }, [allPlayers, positionLimits]);
+
+  const handleSetupConfirm = (selection) => {
+  setPositionLimits(selection.limits);
+  localStorage.setItem(POSITION_LIMITS_KEY, JSON.stringify(selection.limits));
+  localStorage.setItem('draftswipe_setup_complete_v1', 'true');
+  setShowSetupModal(false);
+};
 
   const handlePositionSelect = (position) => {
     setCurrentPosition(position);
@@ -286,9 +305,12 @@ const handleUndo = async () => {
         localStorage.removeItem(PROGRESS_STORAGE_KEY);
         localStorage.removeItem(COMPLETED_POSITIONS_KEY);
         localStorage.removeItem(SWIPE_COUNTER_KEY);
+        localStorage.removeItem(POSITION_LIMITS_KEY);  // Add this
+  localStorage.removeItem('draftswipe_setup_complete_v1');  // Add this
         setCompletedPositions(new Set());
         setPrefs({});
         setPositionProgress({});
+        setPositionLimits({ QB: 15, RB: 30, WR: 35, TE: 20 });  // Add this
       }}
     />
   );
@@ -299,8 +321,19 @@ const handleUndo = async () => {
     return (
       <div style={styles.appContainer}>
         <div style={styles.positionSelectionScreen}>
-          {/* SWIPE COUNTER: Global Swipe Counter - shown on position selection screen */}
-          <GlobalStatsDisplay globalSwipeCount={globalSwipeCount} />
+         <div style={styles.topBar}>
+  <div style={styles.topSlot} /> {/* empty left cell for symmetry */}
+  <div style={styles.counterSlot}>
+    <GlobalStatsDisplay globalSwipeCount={globalSwipeCount} />
+  </div>
+  <button
+    onClick={() => setShowSetupModal(true)}
+    style={isMobile ? styles.settingsBtnMobile : styles.settingsBtn}
+    aria-label="Settings"
+  >
+    ⚙️
+  </button>
+</div>
           <div style={styles.positionHeader}>
             <h1 style={styles.positionHeaderTitle}>SwipeScout</h1>
             <p style={styles.positionHeaderSubtitle}>Select a position. Swipe ⬆️, ⬇️, ⬅️, or ➡️ to rate players.<br /><br />Complete all 4 positions to unlock your fantasy football draft personality and strategy!</p>
@@ -330,7 +363,7 @@ const handleUndo = async () => {
                     </div>
                     <div style={styles.positionDetails}>
                       <h3 style={styles.positionDetailsTitle}>{config.name}</h3>
-                      <p style={styles.positionDetailsSubtitle}>Top {POSITION_LIMITS[position]} players</p>
+                      <p style={styles.positionDetailsSubtitle}>Top {positionLimits[position]} players</p>
                     </div>
                   </div>
                   
@@ -367,6 +400,12 @@ const handleUndo = async () => {
             Progress: {completedPositions.size} of {Object.keys(POSITION_CONFIG).length} positions completed
           </div>
         </div>
+        {showSetupModal && (
+        <RatingSetupModal
+          onConfirm={handleSetupConfirm}
+          onClose={() => setShowSetupModal(false)}
+        />
+      )}
       </div>
     );
   }
@@ -1021,5 +1060,39 @@ bottom: '75px',
     cursor: 'pointer',
     transition: 'all 0.2s ease',
     minWidth: '200px'
-  }
+  },
+
+  topBar: {
+  width: '100%',
+  maxWidth: 'min(600px, calc(100vw - 3rem))',
+  margin: '0 auto 1.25rem',
+  display: 'grid',
+  gridTemplateColumns: '40px 1fr 40px', // left spacer, center counter, right button
+  alignItems: 'center',
+  position: 'relative',
+},
+
+topSlot: { width: 40, height: 1 }, // keeps center true
+
+counterSlot: {
+  justifySelf: 'center',
+},
+
+settingsBtn: {
+  justifySelf: 'end',
+  width: 36,
+  height: 36,
+  borderRadius: '0.5rem',
+  background: 'rgba(255,255,255,0.1)',
+  border: '1px solid rgba(255,255,255,0.2)',
+  fontSize: '1.25rem',
+  lineHeight: 1,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+  transition: 'all .2s',
+  color: '#94a3b8'
+},
+
 };
