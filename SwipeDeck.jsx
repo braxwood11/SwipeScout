@@ -43,6 +43,9 @@ export default function SwipeDeck() {
   const [showSummary, setShowSummary] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [showSetupModal, setShowSetupModal] = useState(false);
+  const [showSupportBanner, setShowSupportBanner] = useState(
+  !localStorage.getItem('support_banner_dismissed_v1')
+);
 const [positionLimits, setPositionLimits] = useState(() => {
   const saved = localStorage.getItem(POSITION_LIMITS_KEY);
   if (saved) {
@@ -210,6 +213,9 @@ const getPositionStatus = (position) => {
   if (nextIndex >= positionPlayers.length) {
     const newCompletedPositions = new Set([...completedPositions, currentPosition]);
     saveCompletedPositions(newCompletedPositions);
+
+    // show support banner after a completion
+  setShowSupportBanner(true);
     
     // Clear progress for completed position
     const newProgress = { ...positionProgress };
@@ -332,8 +338,18 @@ const handleUndo = async () => {
     return (
       <div style={styles.appContainer}>
         <div style={styles.positionSelectionScreen}>
+
          <div style={styles.topBar}>
-  <div style={styles.topSlot} /> {/* empty left cell for symmetry */}
+  <a
+    href="https://donate.stripe.com/fZufZbaGMdrKe2g51HaAw00"
+    target="_blank"
+    rel="noopener noreferrer"
+    style={styles.supportBtn}
+    aria-label="Support SwipeScout"
+  >
+    <span style={styles.supportGlyph}>♥︎</span>
+  </a>
+
   <div style={styles.counterSlot}>
     <GlobalStatsDisplay globalSwipeCount={globalSwipeCount} />
   </div>
@@ -416,6 +432,46 @@ const handleUndo = async () => {
      return `Progress: ${done} of ${Object.keys(POSITION_CONFIG).length} positions completed`;
    })()}
           </div>
+          <div>&nbsp;</div>
+       {showSupportBanner && (
+  <div
+    style={{
+      ...styles.supportBanner,
+      ...(isMobile ? { gridTemplateColumns: '1fr', gap: 10 } : {})
+    }}
+  >
+    <span style={styles.supportText}>
+      SwipeScout is free. If it helps your draft prep, consider a small tip.
+    </span>
+
+    <div
+      style={{
+        ...styles.supportActions,
+        ...(isMobile ? { width: '100%', justifyContent: 'stretch' } : {})
+      }}
+    >
+      <a
+        href="https://donate.stripe.com/fZufZbaGMdrKe2g51HaAw00"
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ ...styles.bannerBtn, ...(isMobile ? { width: '100%' } : {}) }}
+      >
+        ❤️ Support
+      </a>
+
+      <button
+        onClick={() => {
+          setShowSupportBanner(false);
+          localStorage.setItem('support_banner_dismissed_v1', '1');
+        }}
+        style={{ ...styles.bannerDismiss, ...(isMobile ? { width: '100%' } : {}) }}
+      >
+        Dismiss
+      </button>
+    </div>
+  </div>
+)}
+
         </div>
         {showSetupModal && (
         <RatingSetupModal
@@ -1090,6 +1146,89 @@ bottom: '75px',
 },
 topSlot: { width: 40, height: 1 },
 counterSlot: { justifySelf: 'center' },
+
+supportBtn: {
+  all: 'unset',
+  WebkitAppearance: 'none',
+  appearance: 'none',
+  boxSizing: 'border-box',
+  width: 36,
+  height: 36,
+  borderRadius: '8px',
+  display: 'grid',
+  placeItems: 'center',
+  background: 'rgba(255,255,255,0.10)',
+  border: '1px solid rgba(255,255,255,0.20)',
+  color: '#f87171',
+  cursor: 'pointer',
+  transition: 'background .15s, border-color .15s, transform .08s',
+  WebkitTapHighlightColor: 'transparent',
+  textDecoration: 'none'
+},
+supportGlyph: {
+  fontSize: 20,
+  lineHeight: 1,
+  transform: 'translateY(-1px)'
+},
+
+supportBanner: {
+  width: '100%',
+  maxWidth: 'min(600px, calc(100vw - 3rem))',
+  margin: '0 auto 1.25rem',
+  padding: 'clamp(0.75rem, 2.5vw, 1rem)',
+  borderRadius: '12px',
+  background: 'rgba(255,255,255,0.06)',
+  border: '1px solid rgba(255,255,255,0.14)',
+  boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+  backdropFilter: 'blur(8px)',
+  display: 'grid',
+  gridTemplateColumns: '1fr auto',
+  gap: '12px',
+  alignItems: 'center',
+},
+
+// Text scales nicely and wraps
+supportText: {
+  color: '#e5e7eb',
+  fontSize: 'clamp(0.9rem, 2.5vw, 1rem)',
+  lineHeight: 1.4,
+  textAlign: 'left',
+},
+
+// Button row that collapses on mobile
+supportActions: {
+  display: 'flex',
+  gap: 8,
+  flexWrap: 'wrap',
+  justifyContent: 'flex-end',
+},
+
+bannerBtn: {
+  all: 'unset',
+  cursor: 'pointer',
+  padding: '0.6rem 1rem',
+  borderRadius: '10px',
+  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+  color: '#fff',
+  fontWeight: 700,
+  fontSize: '0.95rem',
+  textAlign: 'center',
+  boxShadow: '0 6px 16px rgba(16, 185, 129, 0.28)'
+},
+
+
+bannerDismiss: {
+  all: 'unset',
+  cursor: 'pointer',
+  padding: '0.6rem 1rem',
+  borderRadius: '10px',
+  border: '1px solid rgba(255,255,255,0.25)',
+  color: '#cbd5e1',
+  fontWeight: 600,
+  fontSize: '0.95rem',
+  textAlign: 'center',
+  background: 'rgba(255,255,255,0.04)',
+},
 
 settingsBtn: {
   all: 'unset',                 // nukes UA defaults (including iOS white bg)
