@@ -146,7 +146,7 @@ const handleCustomBlur = (position, value) => {
         <div style={{marginTop: 24, textAlign: 'center', fontSize: '0.9rem', color: '#94a3b8'}}>
   SwipeScout is ad-free. If you're enjoying it, you can{' '}
   <a
-    href="https://donate.stripe.com/fZufZbaGMdrKe2g51HaAw00"
+    href="https://ko-fi.com/dicestdev"
     target="_blank"
     rel="noopener noreferrer"
     style={{ color: '#60a5fa', textDecoration: 'underline' }}

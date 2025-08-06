@@ -6,9 +6,13 @@ import OverallSummary from './OverallSummary';
 import { recordSwipe, getGlobalSwipeCount } from '../utils/supabase';
 import GlobalStatsDisplay from './GlobalStatsDisplay';
 import RatingSetupModal from './RatingSetupModal';
+import CrowdInsights from './CrowdInsights';
 
 // Position limits configuration
 const POSITION_LIMITS_KEY = 'draftswipe_position_limits_v1';
+
+const query = new URLSearchParams(window.location.search);
+const showCrowdInsights = query.get('insights') === '1';
 
 // Position display configuration
 const POSITION_CONFIG = {
@@ -297,6 +301,10 @@ const handleUndo = async () => {
     return count.toLocaleString();
   };
 
+  if (showCrowdInsights) {
+  return <CrowdInsights onBack={() => window.location.href = '/'} />;
+}
+
   // Loading state
   if (!allPlayers.length) {
     return (
@@ -341,7 +349,7 @@ const handleUndo = async () => {
 
          <div style={styles.topBar}>
   <a
-    href="https://donate.stripe.com/fZufZbaGMdrKe2g51HaAw00"
+    href="https://ko-fi.com/dicestdev"
     target="_blank"
     rel="noopener noreferrer"
     style={styles.supportBtn}
@@ -423,6 +431,26 @@ const handleUndo = async () => {
             })}
           </div>
 
+          <div style={{ marginTop: '2rem', textAlign: 'center' }}>
+  <button
+    onClick={() => window.location.href = '?insights=1'}
+    style={{
+      background: 'none',
+      border: '1px solid rgba(255,255,255,0.2)',
+      color: '#9ca3af',
+      padding: '0.6rem 1rem',
+      borderRadius: '12px',
+      fontSize: '0.95rem',
+      cursor: 'pointer',
+      backdropFilter: 'blur(6px)',
+      transition: 'all 0.2s ease'
+    }}
+  >
+    View Crowd Insights
+  </button>
+</div>
+
+
           <div style={styles.overallProgress}>
             {(() => {
      const done = Object.keys(POSITION_CONFIG).filter(pos => {
@@ -451,7 +479,7 @@ const handleUndo = async () => {
       }}
     >
       <a
-        href="https://donate.stripe.com/fZufZbaGMdrKe2g51HaAw00"
+        href="https://ko-fi.com/dicestdev"
         target="_blank"
         rel="noopener noreferrer"
         style={{ ...styles.bannerBtn, ...(isMobile ? { width: '100%' } : {}) }}
